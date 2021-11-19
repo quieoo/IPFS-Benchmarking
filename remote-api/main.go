@@ -76,6 +76,7 @@ func main() {
 		return
 	}
 	tf := 0
+
 	for {
 		tf++
 		subs := NewLenChars(filesize, StdChars)

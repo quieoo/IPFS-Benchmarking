@@ -1,0 +1,6 @@
+{
+
+"dependencies": {
+    "ipfs-http-client": "^53.0.1"
+  }
+}

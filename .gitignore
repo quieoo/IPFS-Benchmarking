@@ -1,2 +1,4 @@
-remote-api/temp/*
 */.idea
+*/main
+*/temp*
+*/temp/*
