@@ -1,3 +1,6 @@
 [submodule "go-ipfs"]
 	path = local-node/go-ipfs
 	url = https://github.com/quieoo/go-ipfs.git
+[submodule "local-node/go-ipfs"]
+	path = local-node/go-ipfs
+	url = https://github.com/quieoo/go-ipfs.git
