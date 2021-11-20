@@ -1,31 +1,32 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"flag"
 	"fmt"
+	_ "github.com/ipfs/go-cid"
+	config "github.com/ipfs/go-ipfs-config"
+	files "github.com/ipfs/go-ipfs-files"
+	"github.com/ipfs/go-ipfs/core"
+	"github.com/ipfs/go-ipfs/core/coreapi"
+	"github.com/ipfs/go-ipfs/core/node/libp2p"
+	"github.com/ipfs/go-ipfs/plugin/loader"
+	"github.com/ipfs/go-ipfs/repo/fsrepo"
+	icore "github.com/ipfs/interface-go-ipfs-core"
+	icorepath "github.com/ipfs/interface-go-ipfs-core/path"
+	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multiaddr"
+	"io"
 	"io/ioutil"
-	"log"
+	"metrics"
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
+	"time"
 
-	config "github.com/ipfs/go-ipfs-config"
-	files "github.com/ipfs/go-ipfs-files"
-	libp2p "github.com/ipfs/go-ipfs/core/node/libp2p"
-	icore "github.com/ipfs/interface-go-ipfs-core"
-	icorepath "github.com/ipfs/interface-go-ipfs-core/path"
-	peerstore "github.com/libp2p/go-libp2p-peerstore"
-	ma "github.com/multiformats/go-multiaddr"
-
-	"github.com/ipfs/go-ipfs/core"
-	"github.com/ipfs/go-ipfs/core/coreapi"
-	"github.com/ipfs/go-ipfs/plugin/loader" // This package is needed so that all the preloaded plugins are loaded automatically
-	"github.com/ipfs/go-ipfs/repo/fsrepo"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"crypto/rand"
 )
-
-/// ------ Setting up the IPFS Repo
 
 func setupPlugins(externalPluginsPath string) error {
 	// Load any external plugins if available on externalPluginsPath
@@ -47,11 +48,11 @@ func setupPlugins(externalPluginsPath string) error {
 }
 
 func createTempRepo(ctx context.Context) (string, error) {
-	repoPath, err := ioutil.TempDir("", "ipfs-shell")
+	/*repoPath, err := ioutil.TempDir("", "ipfs-shell")
 	if err != nil {
 		return "", fmt.Errorf("failed to get temp dir: %s", err)
-	}
-
+	}*/
+	repoPath := "~/.ipfs"
 	// Create a config with default options and a 2048 bit key
 	cfg, err := config.Init(ioutil.Discard, 2048)
 	if err != nil {
@@ -59,7 +60,8 @@ func createTempRepo(ctx context.Context) (string, error) {
 	}
 
 	// Create the repo with the config
-	err = fsrepo.Init(repoPath, cfg)
+	//err = fsrepo.Init(repoPath, cfg)
+	err = fsrepo.Init("~/.ipfs", cfg)
 	if err != nil {
 		return "", fmt.Errorf("failed to init ephemeral node: %s", err)
 	}
@@ -95,22 +97,6 @@ func createNode(ctx context.Context, repoPath string) (icore.CoreAPI, error) {
 	return coreapi.NewCoreAPI(node)
 }
 
-// Spawns a node on the default repo location, if the repo exists
-func spawnDefault(ctx context.Context) (icore.CoreAPI, error) {
-	defaultPath, err := config.PathRoot()
-	if err != nil {
-		// shouldn't be possible
-		return nil, err
-	}
-
-	if err := setupPlugins(defaultPath); err != nil {
-		return nil, err
-
-	}
-
-	return createNode(ctx, defaultPath)
-}
-
 // Spawns a node to be used just for this run (i.e. creates a tmp repo)
 func spawnEphemeral(ctx context.Context) (icore.CoreAPI, error) {
 	if err := setupPlugins(""); err != nil {
@@ -126,86 +112,11 @@ func spawnEphemeral(ctx context.Context) (icore.CoreAPI, error) {
 	// Spawning an ephemeral IPFS node
 	return createNode(ctx, repoPath)
 }
-
-//
-
-func connectToPeers(ctx context.Context, ipfs icore.CoreAPI, peers []string) error {
-	var wg sync.WaitGroup
-	peerInfos := make(map[peer.ID]*peerstore.PeerInfo, len(peers))
-	for _, addrStr := range peers {
-		addr, err := ma.NewMultiaddr(addrStr)
-		if err != nil {
-			return err
-		}
-		pii, err := peerstore.InfoFromP2pAddr(addr)
-		if err != nil {
-			return err
-		}
-		pi, ok := peerInfos[pii.ID]
-		if !ok {
-			pi = &peerstore.PeerInfo{ID: pii.ID}
-			peerInfos[pi.ID] = pi
-		}
-		pi.Addrs = append(pi.Addrs, pii.Addrs...)
-	}
-
-	wg.Add(len(peerInfos))
-	for _, peerInfo := range peerInfos {
-		go func(peerInfo *peerstore.PeerInfo) {
-			defer wg.Done()
-			err := ipfs.Swarm().Connect(ctx, *peerInfo)
-			if err != nil {
-				log.Printf("failed to connect to %s: %s", peerInfo.ID, err)
-			}
-		}(peerInfo)
-	}
-	wg.Wait()
-	return nil
-}
-
-func getUnixfsFile(path string) (files.File, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	st, err := file.Stat()
-	if err != nil {
-		return nil, err
-	}
-
-	f, err := files.NewReaderPathFile(path, file, st)
-	if err != nil {
-		return nil, err
-	}
-
-	return f, nil
-}
-
-func getUnixfsNode(path string) (files.Node, error) {
-	st, err := os.Stat(path)
-	if err != nil {
-		return nil, err
-	}
-
-	f, err := files.NewSerialFile(path, false, st)
-	if err != nil {
-		return nil, err
-	}
-
-	return f, nil
-}
-
-/// -------
-
-func main() {
-	/// --- Part I: Getting a IPFS node running
-
+func Ini() (context.Context, icore.CoreAPI, context.CancelFunc) {
 	fmt.Println("-- Getting an IPFS node running -- ")
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	//defer cancel()
 
 	/*
 		// Spawn a node using the default path (~/.ipfs), assuming that a repo exists there already
@@ -224,114 +135,290 @@ func main() {
 	}
 
 	fmt.Println("IPFS node is running")
+	return ctx, ipfs, cancel
+}
 
-	/// --- Part II: Adding a file and a directory to IPFS
-
-	fmt.Println("\n-- Adding and getting back files & directories --")
-
-	inputBasePath := "./example-folder/"
-	inputPathFile := inputBasePath + "ipfs.paper.draft3.pdf"
-	inputPathDirectory := inputBasePath + "test-dir"
-
-	someFile, err := getUnixfsNode(inputPathFile)
+func getUnixfsNode(path string) (files.Node, error) {
+	st, err := os.Stat(path)
 	if err != nil {
-		panic(fmt.Errorf("Could not get File: %s", err))
+		return nil, err
 	}
 
-	cidFile, err := ipfs.Unixfs().Add(ctx, someFile)
+	f, err := files.NewSerialFile(path, false, st)
 	if err != nil {
-		panic(fmt.Errorf("Could not add File: %s", err))
+		return nil, err
 	}
 
-	fmt.Printf("Added file to IPFS with CID %s\n", cidFile.String())
-
-	someDirectory, err := getUnixfsNode(inputPathDirectory)
+	return f, nil
+}
+func UploadFile(file string, ctx context.Context, ipfs icore.CoreAPI) (icorepath.Resolved, error) {
+	somefile, err := getUnixfsNode(file)
 	if err != nil {
-		panic(fmt.Errorf("Could not get File: %s", err))
+		return nil, err
+	}
+	//start:=time.Now()
+
+	cid, err := ipfs.Unixfs().Add(ctx, somefile)
+	//quieoo.AddTimer.UpdateSince(start)
+	return cid, err
+}
+
+func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, cids string) {
+	f, _ := os.Create(cids)
+
+	fmt.Printf("Uploading files with size %d B\n", size)
+	coreNumber := cores
+	stallchan := make(chan int)
+	sendFunc := func(i int) {
+		for j := 0; j < number/coreNumber; j++ {
+			var subs string
+			subs = NewLenChars(size, StdChars)
+			inputpath := fmt.Sprintf("./temp %d", i)
+			err := ioutil.WriteFile(inputpath, []byte(subs), 0666)
+			start := time.Now()
+			cid, err := UploadFile(inputpath, ctx, ipfs)
+			if err != nil {
+				fmt.Println(err.Error())
+				return
+			}
+			finish := time.Now()
+			fmt.Printf("%s upload %f \n", cid.Cid(), finish.Sub(start).Seconds()*1000)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: %s", err)
+				os.Exit(1)
+			}
+
+			io.WriteString(f, strings.Split(cid.String(), "/")[2]+"\n")
+		}
+		stallchan <- i
+	}
+	for i := 0; i < coreNumber; i++ {
+		go sendFunc(i)
 	}
 
-	cidDirectory, err := ipfs.Unixfs().Add(ctx, someDirectory)
+	stalls := coreNumber
+	for {
+		select {
+		case <-stallchan:
+			fmt.Printf("core finished\n")
+			stalls--
+			if stalls <= 0 {
+				f.Close()
+				return
+			}
+		}
+	}
+}
+
+func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bool, np string) {
+	//logging.SetLogLevel("dht","debug")
+
+	neighbours, err := LocalNeighbour(np)
+	if err != nil || len(neighbours) == 0 {
+		fmt.Printf("no neighbours file specified, will not disconnect any neighbours after geting\n")
+	}
+
+	file, err := os.Open(cids)
+	defer file.Close()
 	if err != nil {
-		panic(fmt.Errorf("Could not add Directory: %s", err))
+		fmt.Fprintf(os.Stderr, "error: %s", err)
+		os.Exit(1)
+	}
+	br := bufio.NewReader(file)
+	for {
+		torequest, _, err := br.ReadLine()
+		cid := string(torequest)
+		if err != nil {
+			fmt.Println(err.Error())
+			return
+		}
+		p := icorepath.New(cid)
+		start := time.Now()
+		rootNode, err := ipfs.Unixfs().Get(ctx, p)
+		if err != nil {
+			panic(fmt.Errorf("Could not get file with CID: %s", err))
+		}
+		err = files.WriteTo(rootNode, "./output/"+cid)
+		if err != nil {
+			panic(fmt.Errorf("Could not write out the fetched CID: %s", err))
+		}
+		fmt.Printf("get file %s %f\n", cid, time.Now().Sub(start).Seconds()/1000)
+		//remove peers
+		if pag {
+			err := ipfs.Dht().Provide(ctx, p)
+			if err != nil {
+				fmt.Printf("failed to provide file after get: %v\n", err.Error())
+				return
+			}
+		}
+
+		if len(neighbours) != 0 {
+			for _, n := range neighbours {
+				err := DisconnectToPeers(ctx, ipfs, n)
+				if err != nil {
+					fmt.Printf("failed to disconnect: %v\n", err)
+				}
+			}
+		}
 	}
 
-	fmt.Printf("Added directory to IPFS with CID %s\n", cidDirectory.String())
+}
 
-	/// --- Part III: Getting the file and directory you added back
+func main() {
+	/// --- Part I: Getting a IPFS node running
 
-	outputBasePath := "./example-folder/"
-	outputPathFile := outputBasePath + strings.Split(cidFile.String(), "/")[2]
-	outputPathDirectory := outputBasePath + strings.Split(cidDirectory.String(), "/")[2]
+	//read config option
+	flag.BoolVar(&(metrics.CMD_CloseBackProvide), "closebackprovide", false, "wether to close background provider")
+	flag.BoolVar(&(metrics.CMD_CloseLANDHT), "closelan", false, "whether to close lan dht")
+	flag.BoolVar(&(metrics.CMD_CloseDHTRefresh), "closedhtrefresh", false, "whether to close dht refresh")
+	flag.BoolVar(&(metrics.CMD_EnableMetrics), "enablemetrics", true, "whether to enable metrics")
 
-	rootNodeFile, err := ipfs.Unixfs().Get(ctx, cidFile)
+	var cmd string
+	var filesize int
+	var filenumber int
+	var parallel int
+	var filename1 string
+	var filename2 string
+	var filename3 string
+	var filepersecond int
+	var cidfile string
+	var provideAfterGet bool
+	var neighboursPath string
+
+	flag.StringVar(&cmd, "c", "", "operation type")
+	flag.StringVar(&filename1, "f1", "", "name of file 1, output for gen, source for concat, file to add")
+	flag.StringVar(&filename2, "f2", "", "name of file 2, source for concat")
+	flag.StringVar(&filename3, "f3", "", "name of file 1, output for concat")
+	flag.StringVar(&cidfile, "cid", "cid", "name of cid file for uploading")
+
+	flag.IntVar(&filesize, "s", 256*1024, "file size")
+	flag.IntVar(&filenumber, "n", 1, "file number")
+	flag.IntVar(&parallel, "p", 1, "concurrent operation number")
+	flag.IntVar(&filepersecond, "fps", 0, "add file per second")
+
+	flag.BoolVar(&provideAfterGet, "pag", false, "whether to provide file after get it")
+
+	flag.StringVar(&neighboursPath, "np", "neighbours", "the path of file that records neighbours id, neighbours will be removed after geting file")
+
+	flag.Parse()
+
+	if metrics.CMD_EnableMetrics {
+		metrics.TimersInit()
+		defer metrics.OutputMetrics()
+	}
+
+	if cmd == "upload" {
+		ctx, ipfs, cancel := Ini()
+		defer cancel()
+		if filename1 != "" {
+			UploadFile(filename1, ctx, ipfs)
+		} else {
+			Upload(filesize, filenumber, parallel, ctx, ipfs, cidfile)
+		}
+		return
+	}
+	if cmd == "downloads" {
+		ctx, ipfs, cancel := Ini()
+		defer cancel()
+		DownloadSerial(ctx, ipfs, cidfile, provideAfterGet, neighboursPath)
+		return
+	}
+	_, _, cancel := Ini()
+	defer cancel()
+	stall := make(chan int, 1)
+	select {
+	case s := <-stall:
+		fmt.Println(s)
+	}
+}
+
+var StdChars = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
+
+// NewLenChars returns a new random string of the provided length, consisting of the provided byte slice of allowed characters(maximum 256).
+func NewLenChars(length int, chars []byte) string {
+	if length == 0 {
+		return ""
+	}
+	clen := len(chars)
+	if clen < 2 || clen > 256 {
+		panic("Wrong charset length for NewLenChars()")
+	}
+	maxrb := 255 - (256 % clen)
+	b := make([]byte, length)
+	r := make([]byte, length+(length/4)) // storage for random bytes.
+	i := 0
+	for {
+		if _, err := rand.Read(r); err != nil {
+			panic("Error reading random bytes: " + err.Error())
+		}
+		for _, rb := range r {
+			c := int(rb)
+			if c > maxrb {
+				continue // Skip this number to avoid modulo bias.
+			}
+			b[i] = chars[c%clen]
+			i++
+			if i == length {
+				return string(b)
+			}
+		}
+	}
+}
+
+func LocalNeighbour(np string) ([]string, error) {
+	var neighbours []string
+
+	filename := np
+	file, err := os.Open(filename)
 	if err != nil {
-		panic(fmt.Errorf("Could not get file with CID: %s", err))
+		return neighbours, fmt.Errorf("failed to open neighbour file: %v\n", err)
 	}
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
 
-	err = files.WriteTo(rootNodeFile, outputPathFile)
+		}
+	}(file)
+	bf := bufio.NewReader(file)
+	for {
+		s, _, err := bf.ReadLine()
+		if err != nil {
+			fmt.Println(err.Error())
+			return neighbours, nil
+		}
+		neighbours = append(neighbours, string(s))
+	}
+}
+func DisconnectToPeers(ctx context.Context, ipfs icore.CoreAPI, remove string) error {
+	//peerInfos := make(map[peer.ID]*peerstore.PeerInfo, len(peers))
+	//var peerInfos map[peer.ID]*peerstore.PeerInfo
+	peerInfos, err := ipfs.Swarm().Peers(ctx)
 	if err != nil {
-		panic(fmt.Errorf("Could not write out the fetched CID: %s", err))
+		//fmt.Println(err.Error())
+		return err
 	}
+	for _, con := range peerInfos {
+		if con.ID().String() != remove {
+			continue
+		}
+		ci := peer.AddrInfo{
+			Addrs: []multiaddr.Multiaddr{con.Address()},
+			ID:    con.ID(),
+		}
 
-	fmt.Printf("Got file back from IPFS (IPFS path: %s) and wrote it to %s\n", cidFile.String(), outputPathFile)
+		addrs, err := peer.AddrInfoToP2pAddrs(&ci)
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+		//fmt.Printf("disconnect from %v\n",addrs)
 
-	rootNodeDirectory, err := ipfs.Unixfs().Get(ctx, cidDirectory)
-	if err != nil {
-		panic(fmt.Errorf("Could not get file with CID: %s", err))
+		for _, addr := range addrs {
+			err = ipfs.Swarm().Disconnect(ctx, addr)
+			if err != nil {
+				return err
+			}
+		}
+		break
 	}
-
-	err = files.WriteTo(rootNodeDirectory, outputPathDirectory)
-	if err != nil {
-		panic(fmt.Errorf("Could not write out the fetched CID: %s", err))
-	}
-
-	fmt.Printf("Got directory back from IPFS (IPFS path: %s) and wrote it to %s\n", cidDirectory.String(), outputPathDirectory)
-
-	/// --- Part IV: Getting a file from the IPFS Network
-
-	fmt.Println("\n-- Going to connect to a few nodes in the Network as bootstrappers --")
-
-	bootstrapNodes := []string{
-		// IPFS Bootstrapper nodes.
-		"/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-		"/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
-		"/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
-		"/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
-
-		// IPFS Cluster Pinning nodes
-		"/ip4/138.201.67.219/tcp/4001/p2p/QmUd6zHcbkbcs7SMxwLs48qZVX3vpcM8errYS7xEczwRMA",
-		"/ip4/138.201.67.219/udp/4001/quic/p2p/QmUd6zHcbkbcs7SMxwLs48qZVX3vpcM8errYS7xEczwRMA",
-		"/ip4/138.201.67.220/tcp/4001/p2p/QmNSYxZAiJHeLdkBg38roksAR9So7Y5eojks1yjEcUtZ7i",
-		"/ip4/138.201.67.220/udp/4001/quic/p2p/QmNSYxZAiJHeLdkBg38roksAR9So7Y5eojks1yjEcUtZ7i",
-		"/ip4/138.201.68.74/tcp/4001/p2p/QmdnXwLrC8p1ueiq2Qya8joNvk3TVVDAut7PrikmZwubtR",
-		"/ip4/138.201.68.74/udp/4001/quic/p2p/QmdnXwLrC8p1ueiq2Qya8joNvk3TVVDAut7PrikmZwubtR",
-		"/ip4/94.130.135.167/tcp/4001/p2p/QmUEMvxS2e7iDrereVYc5SWPauXPyNwxcy9BXZrC1QTcHE",
-		"/ip4/94.130.135.167/udp/4001/quic/p2p/QmUEMvxS2e7iDrereVYc5SWPauXPyNwxcy9BXZrC1QTcHE",
-
-		// You can add more nodes here, for example, another IPFS node you might have running locally, mine was:
-		// "/ip4/127.0.0.1/tcp/4010/p2p/QmZp2fhDLxjYue2RiUvLwT9MWdnbDxam32qYFnGmxZDh5L",
-		// "/ip4/127.0.0.1/udp/4010/quic/p2p/QmZp2fhDLxjYue2RiUvLwT9MWdnbDxam32qYFnGmxZDh5L",
-	}
-
-	go connectToPeers(ctx, ipfs, bootstrapNodes)
-
-	exampleCIDStr := "QmUaoioqU7bxezBQZkUcgcSyokatMY71sxsALxQmRRrHrj"
-
-	fmt.Printf("Fetching a file from the network with CID %s\n", exampleCIDStr)
-	outputPath := outputBasePath + exampleCIDStr
-	testCID := icorepath.New(exampleCIDStr)
-
-	rootNode, err := ipfs.Unixfs().Get(ctx, testCID)
-	if err != nil {
-		panic(fmt.Errorf("Could not get file with CID: %s", err))
-	}
-
-	err = files.WriteTo(rootNode, outputPath)
-	if err != nil {
-		panic(fmt.Errorf("Could not write out the fetched CID: %s", err))
-	}
-
-	fmt.Printf("Wrote the file to %s\n", outputPath)
-
-	fmt.Println("\nAll done! You just finalized your first tutorial on how to use go-ipfs as a library")
+	return nil
 }
