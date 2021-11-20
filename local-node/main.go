@@ -9,7 +9,6 @@ import (
 	"github.com/ipfs/go-cid"
 	"metrics"
 
-	// "github.com/ipfs/go-ipfs/quieoo"
 	mh "github.com/multiformats/go-multihash"
 	"io"
 	"io/ioutil"
