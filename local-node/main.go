@@ -678,7 +678,7 @@ func LocalNeighbour()([]string,error){
 		neighbours=append(neighbours,string(s))
 	}
 }
-func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI) {
+func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI,cids string) {
 	//logging.SetLogLevel("dht","debug")
 	neighbours,err:=LocalNeighbour()
 	if err!=nil{
@@ -690,7 +690,7 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI) {
 	}
 
 
-	file, err := os.Open("cids")
+	file, err := os.Open(cids)
 	defer file.Close()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s", err)
@@ -867,6 +867,7 @@ func main() {
 	flag.BoolVar(&(quieoo.CMD_CloseAddProvide),"closeaddprovide",false,"wthether to close provider when upload file")
 	flag.BoolVar(&(quieoometrics.CMD_EnableMetrics),"enablemetrics",true,"whether to enable metrics")
 
+
 	var cmd string
 	var filesize int
 	var filenumber int
@@ -875,11 +876,14 @@ func main() {
 	var filename2 string
 	var filename3 string
 	var filepersecond int
+	var cidsFile string
 
 	flag.StringVar(&cmd,"c","","operation type")
 	flag.StringVar(&filename1,"f1","","name of file 1, output for gen, source for concat, file to add")
 	flag.StringVar(&filename2,"f2","","name of file 2, source for concat")
 	flag.StringVar(&filename3,"f3","","name of file 1, output for concat")
+	flag.StringVar(&cidsFile,"cid","cid","the cids file to download")
+
 
 	flag.IntVar(&filesize,"s",256*1024,"file size")
 	flag.IntVar(&filenumber,"n",1,"file number")
@@ -905,7 +909,7 @@ func main() {
 	if cmd=="downloads"{
 		ctx, ipfs, cancel := Ini()
 		defer cancel()
-		DownloadSerial(ctx,ipfs)
+		DownloadSerial(ctx,ipfs,cidsFile)
 		return
 	}
 	if cmd=="genfile"{
