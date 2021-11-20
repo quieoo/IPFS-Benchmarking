@@ -5,7 +5,7 @@ go 1.14
 require (
 	github.com/ipfs/go-cid v0.1.0
 	github.com/ipfs/go-ipfs v0.7.0
-	github.com/ipfs/go-ipfs-config v0.12.0
+	github.com/ipfs/go-ipfs-config v0.9.0
 	github.com/ipfs/go-ipfs-files v0.0.9
 	github.com/ipfs/interface-go-ipfs-core v0.5.2
 	github.com/libp2p/go-libp2p-core v0.11.0
@@ -15,5 +15,8 @@ require (
 	metrics v0.0.0-00010101000000-000000000000
 )
 
-//github.com/ipfs/go-ipfs => ./go-ipfs/
-replace metrics => ./metrics
+
+replace (
+	github.com/ipfs/go-ipfs => ./go-ipfs/
+	metrics => ./metrics
+)

@@ -856,8 +856,8 @@ func SliceTest(){
 
 const BlockSize=256*1024
 func main() {
+	//run
 	/// --- Part I: Getting a IPFS node running
-
 	//read config option
 	flag.BoolVar(&(metrics.CMD_CloseBackProvide),"closebackprovide",false,"wether to close background provider")
 	flag.BoolVar(&(metrics.CMD_CloseLANDHT),"closelan",false,"whether to close lan dht")
