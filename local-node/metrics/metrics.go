@@ -77,29 +77,29 @@ var RestInAddAll float64
 var BufferCommitTIme float64
 
 func AddBreakDownInit(){
-	FileNumber=0
-	LastAverage=0
+	FileNumber =0
+	LastAverage =0
 	AddTimeUse =0
 	ProvideTimeUse =0
 	StoreBlocksTimeUse =0
-	AddfileTImeUse=0
-	RestInAddAll=0
-	BufferCommitTIme=0
+	AddfileTImeUse =0
+	RestInAddAll =0
+	BufferCommitTIme =0
 }
 func AddBreakDownSummery(){
-	storeTime:=RestInAddAll+StoreBlocksTimeUse+BufferCommitTIme
-	merkleTime:=AddfileTImeUse-StoreBlocksTimeUse-BufferCommitTIme
-	fmt.Printf("add time: %f ms(%f), merkle dag time: %f ms, store blocks time: %f ms, provide time: %f ms\n",AddTimeUse/FileNumber,(AddTimeUse/FileNumber-LastAverage)/LastAverage,merkleTime/FileNumber,storeTime/FileNumber,ProvideTimeUse/FileNumber)
-	LastAverage=AddTimeUse/FileNumber
+	storeTime:= RestInAddAll + StoreBlocksTimeUse + BufferCommitTIme
+	merkleTime:= AddfileTImeUse - StoreBlocksTimeUse - BufferCommitTIme
+	fmt.Printf("add time: %f ms(%f), merkle dag time: %f ms, store blocks time: %f ms, provide time: %f ms\n", AddTimeUse/FileNumber,(AddTimeUse/FileNumber-LastAverage)/LastAverage,merkleTime/FileNumber,storeTime/FileNumber, ProvideTimeUse/FileNumber)
+	LastAverage = AddTimeUse / FileNumber
 }
 var GetTimeUse float64
 var ResolveTimeUse float64
 var GetFileNumber int
 
 func GetBreakDownInit(){
-	GetTimeUse=0
-	ResolveTimeUse=0
-	GetFileNumber=0
+	GetTimeUse =0
+	ResolveTimeUse =0
+	GetFileNumber =0
 }
 
 

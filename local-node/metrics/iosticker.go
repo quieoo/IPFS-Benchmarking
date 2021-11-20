@@ -66,7 +66,7 @@ func (stick *IOSticker) StartLogging(){
 
 
 
-func NewIOSticker() *IOSticker{
+func NewIOSticker() *IOSticker {
 
 	stick:=&IOSticker{
 		LifeTime: make(map[cid.Cid]RequestLife),

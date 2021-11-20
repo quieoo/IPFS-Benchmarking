@@ -7,10 +7,9 @@ import (
 	"flag"
 	"fmt"
 	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-ipfs/quieoo"
+	"metrics"
 
 	// "github.com/ipfs/go-ipfs/quieoo"
-	"github.com/ipfs/go-ipfs/quieoometrics"
 	mh "github.com/multiformats/go-multihash"
 	"io"
 	"io/ioutil"
@@ -739,7 +738,7 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI,cids string) {
 			panic(fmt.Errorf("Could not write out the fetched CID: %s", err))
 		}
 
-		quieoo.MyTracker.Finish(string(torequest),time.Now())
+		metrics.MyTracker.Finish(string(torequest),time.Now())
 
 
 		usetime := time.Now().Sub(start)
@@ -769,13 +768,13 @@ func trackerMocking(){
 	mhash,_:=mh.FromB58String("QmcWC9p4t7gnx82tmEaWVNotQe3HNLuJvYHK1EPtfVfQRU")
 	target:=cid.NewCidV0(mhash)
 
-	quieoo.MyTracker.WantBlocks(target,time.Now())
+	metrics.MyTracker.WantBlocks(target,time.Now())
 	time.Sleep(500*time.Millisecond)
-	quieoo.MyTracker.FindProvider(target,time.Now())
+	metrics.MyTracker.FindProvider(target,time.Now())
 
 	p0,_:=peer.Decode("12D3KooWCqdWNU6CqpdsHodYZBJKjM8M8UmwpPWf7hwJuzvHwJjo")
 
-	resolver,err:=quieoo.MyTracker.GetResolverMH(mhash)
+	resolver,err:=metrics.MyTracker.GetResolverMH(mhash)
 	if err!=nil{
 		fmt.Println(err.Error())
 		return
@@ -790,17 +789,17 @@ func trackerMocking(){
 	closers,_:=peer.Decode("12D3KooWH6h7ghs5znUmTaB2VkQGpv5UYEs2bfEByzR4dfgve1XX")
 	resolver.GotCloser(p0,[]peer.ID{closers},time.Now())
 	resolver.GotProvider(p0,time.Now())
-	quieoo.MyTracker.FoundProvider(resolver.GetTarget(),time.Now())
+	metrics.MyTracker.FoundProvider(resolver.GetTarget(),time.Now())
 
-	resolver,_=quieoo.MyTracker.GetResolverMH(mhash)
-
-	time.Sleep(500*time.Millisecond)
-	quieoo.MyTracker.Connected(target,time.Now())
+	resolver,_=metrics.MyTracker.GetResolverMH(mhash)
 
 	time.Sleep(500*time.Millisecond)
-	quieoo.MyTracker.Finish("QmcWC9p4t7gnx82tmEaWVNotQe3HNLuJvYHK1EPtfVfQRU",time.Now())
+	metrics.MyTracker.Connected(target,time.Now())
 
-	quieoo.MyTracker.PrintAll()
+	time.Sleep(500*time.Millisecond)
+	metrics.MyTracker.Finish("QmcWC9p4t7gnx82tmEaWVNotQe3HNLuJvYHK1EPtfVfQRU",time.Now())
+
+	metrics.MyTracker.PrintAll()
 }
 
 type person struct {
@@ -861,11 +860,11 @@ func main() {
 	/// --- Part I: Getting a IPFS node running
 
 	//read config option
-	flag.BoolVar(&(quieoo.CMD_CloseBackProvide),"closebackprovide",false,"wether to close background provider")
-	flag.BoolVar(&(quieoo.CMD_CloseLANDHT),"closelan",false,"whether to close lan dht")
-	flag.BoolVar(&(quieoo.CMD_CloseDHTRefresh),"closedhtrefresh",false,"whether to close dht refresh")
-	flag.BoolVar(&(quieoo.CMD_CloseAddProvide),"closeaddprovide",false,"wthether to close provider when upload file")
-	flag.BoolVar(&(quieoometrics.CMD_EnableMetrics),"enablemetrics",true,"whether to enable metrics")
+	flag.BoolVar(&(metrics.CMD_CloseBackProvide),"closebackprovide",false,"wether to close background provider")
+	flag.BoolVar(&(metrics.CMD_CloseLANDHT),"closelan",false,"whether to close lan dht")
+	flag.BoolVar(&(metrics.CMD_CloseDHTRefresh),"closedhtrefresh",false,"whether to close dht refresh")
+	flag.BoolVar(&(metrics.CMD_CloseAddProvide),"closeaddprovide",false,"wthether to close provider when upload file")
+	flag.BoolVar(&(metrics.CMD_EnableMetrics),"enablemetrics",true,"whether to enable metrics")
 
 
 	var cmd string
@@ -891,9 +890,9 @@ func main() {
 	flag.IntVar(&filepersecond,"fps",0,"add file per second")
 	flag.Parse()
 
-	if quieoometrics.CMD_EnableMetrics{
-		quieoometrics.TimersInit()
-		defer quieoometrics.OutputMetrics()
+	if metrics.CMD_EnableMetrics{
+		metrics.TimersInit()
+		defer metrics.OutputMetrics()
 	}
 
 	if cmd=="upload"{

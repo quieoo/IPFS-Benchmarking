@@ -11,7 +11,7 @@ type DispatchMonitor struct {
 
 }
 
-func NewMonitor()*DispatchMonitor{
+func NewMonitor()*DispatchMonitor {
 	return &DispatchMonitor{
 		redundants: 0,
 		effects: make(map[peer.ID]int),

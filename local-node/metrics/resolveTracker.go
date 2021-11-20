@@ -26,8 +26,8 @@ type Node struct {
 	father peer.ID
 
 }
-func NewNode()*Node{
-	initime:=time.Unix(NULL_TIME,NULL_TIME)
+func NewNode()*Node {
+	initime:=time.Unix(NULL_TIME, NULL_TIME)
 	return &Node{sendRequest: initime,gotCloser: initime,gotProvider: initime,earlistFound: initime}
 }
 
@@ -56,9 +56,9 @@ func CPL(p peer.ID, mh multihash.Multihash) int {
 
 func (rt *ResolveTracker) Seed(seeds []peer.ID, t time.Time) {
 	for _, i := range seeds {
-		node:=NewNode()
+		node:= NewNode()
 		node.id=i
-		node.cpl=CPL(i,rt.target.Hash())
+		node.cpl= CPL(i,rt.target.Hash())
 		node.earlistFound=t
 		node.father=""
 		//node := Node{id: i, cpl: CPL(i, rt.target.Hash()), earlistFound: t, father: ""}
@@ -102,11 +102,11 @@ func (rt *ResolveTracker) GotCloser(peer peer.ID, closers []peer.ID, t time.Time
 				}
 
 				//nd := Node{id: c, earlistFound: t, father: peer, cpl: CPL(c, rt.target.Hash())}
-				nd:=NewNode()
+				nd:= NewNode()
 				nd.id=c
 				nd.earlistFound=t
 				nd.father=peer
-				nd.cpl=CPL(c,rt.target.Hash())
+				nd.cpl= CPL(c,rt.target.Hash())
 
 				rt.nodes=append(rt.nodes,*nd)
 
@@ -148,7 +148,7 @@ func (rt *ResolveTracker) Collect2(){
 	fmt.Printf("%d\n",AllFound)
 
 	Requests:=0
-	initime:=time.Unix(NULL_TIME,NULL_TIME)
+	initime:=time.Unix(NULL_TIME, NULL_TIME)
 	for _,r:=range rt.nodes{
 		if r.sendRequest!=initime{
 			Requests++
@@ -158,7 +158,7 @@ func (rt *ResolveTracker) Collect2(){
 }
 
 func (rt *ResolveTracker)requestLatency()[]float64{
-	initime:=time.Unix(NULL_TIME,NULL_TIME)
+	initime:=time.Unix(NULL_TIME, NULL_TIME)
 	result:=[]float64{}
 	for _,r:=range rt.nodes{
 		if r.sendRequest!=initime && r.gotCloser!=initime{

@@ -25,7 +25,7 @@ type ProviderTracker struct {
 
 var ProvT *ProviderTracker
 
-func NewProviderTracker(intv time.Duration)*ProviderTracker{
+func NewProviderTracker(intv time.Duration)*ProviderTracker {
 	return &ProviderTracker{
 		interval:intv,
 	}
@@ -193,7 +193,7 @@ type Spin struct{
 	hop []int
 	StartTime time.Time
 }
-func NewSpin()*Spin{
+func NewSpin()*Spin {
 	return &Spin{
 		latency: []float64{},
 		StartTime: time.Now(),
@@ -335,7 +335,7 @@ func ProviderSearch(ipfs iface.CoreAPI, ctx context.Context) {
 }
 func ProvidersSearch(ipfs iface.CoreAPI,ctx context.Context) {
 	//logging.SetLogLevel("dht","debug")
-	ProvT=NewProviderTracker(time.Minute)
+	ProvT = NewProviderTracker(time.Minute)
 	//ProvT.Monitor(ipfs,ctx)
 	ProvT.Muti_Monitor(ctx,ipfs)
 }

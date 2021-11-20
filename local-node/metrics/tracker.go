@@ -53,7 +53,7 @@ func (tr *Tracker) Provide(c cid.Cid,t time.Time){
 	if ok{
 		return
 	}
-	pt:=&ProvideTracker{cid:c,startT: t,gotClosestPeersT: time.Unix(NULL_TIME,NULL_TIME),finishT: time.Unix(NULL_TIME,NULL_TIME)}
+	pt:=&ProvideTracker{cid: c,startT: t,gotClosestPeersT: time.Unix(NULL_TIME, NULL_TIME),finishT: time.Unix(NULL_TIME, NULL_TIME)}
 	resolve:=new(ResolveTracker)
 	resolve.Init(c)
 	pt.resolver=resolve
@@ -128,7 +128,7 @@ func (tr *Tracker) FindProvider(c cid.Cid, t time.Time){
 	}
 }
 
-func(tr *Tracker) GetResolver(c cid.Cid) *ResolveTracker{
+func(tr *Tracker) GetResolver(c cid.Cid) *ResolveTracker {
 	ft,ok:=tr.Trackers.Load(c)
 	if ok{
 		return ft.(*FTracker).Resolver
@@ -190,10 +190,10 @@ func(tr *Tracker)Finish(c string,t time.Time){
 		fmt.Println("Finish for no one")
 	}
 }
-var MyTracker=NewTracker()
+var MyTracker= NewTracker()
 
 
-func NewTracker() *Tracker{
+func NewTracker() *Tracker {
 	t:=&Tracker{
 		Trackers: new(sync.Map),
 		ProviderTrackers: new(sync.Map),
@@ -277,7 +277,7 @@ func (tr *Tracker)Collect2(){
 
 	tr.ProviderTrackers.Range(func(key, value interface{}) bool {
 		v:=value.(*ProvideTracker)
-		if v.finishT!=time.Unix(NULL_TIME,NULL_TIME){
+		if v.finishT!=time.Unix(NULL_TIME, NULL_TIME){
 			fmt.Println("====================================")
 			fmt.Printf("provide for %s\n",v.cid)
 			v.resolver.Collect2()
