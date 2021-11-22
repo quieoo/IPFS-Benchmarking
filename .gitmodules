@@ -7,3 +7,6 @@
 [submodule "local-node/go-bitswap"]
 	path = local-node/go-bitswap
 	url = https://github.com/quieoo/go-bitswap.git
+[submodule "local-node/go-ipfs-provider"]
+	path = local-node/go-ipfs-provider
+	url = https://github.com/quieoo/go-ipfs-provider.git

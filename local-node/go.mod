@@ -17,4 +17,5 @@ replace (
 	github.com/ipfs/go-ipfs => ./go-ipfs/
 	metrics => ./metrics/
 	github.com/ipfs/go-bitswap => ./go-bitswap/
+	github.com/ipfs/go-ipfs-provider => ./go-ipfs-provider/
 )
