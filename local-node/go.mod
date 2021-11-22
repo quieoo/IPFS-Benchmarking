@@ -10,10 +10,11 @@ require (
 	github.com/ipfs/interface-go-ipfs-core v0.4.0
 	github.com/libp2p/go-libp2p-core v0.8.5
 	github.com/multiformats/go-multiaddr v0.3.1
-	metrics v0.0.0-00010101000000-000000000000
+	metrics v0.0.0
 )
 
 replace (
 	github.com/ipfs/go-ipfs => ./go-ipfs/
-	metrics => ./metrics
+	metrics => ./metrics/
+	github.com/ipfs/go-bitswap => ./go-bitswap/
 )

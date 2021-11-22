@@ -6,4 +6,4 @@
 	url = https://github.com/quieoo/go-ipfs.git
 [submodule "local-node/go-bitswap"]
 	path = local-node/go-bitswap
-	url = https://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@github.com/quieoo/go-bitswap.git
+	url = https://github.com/quieoo/go-bitswap.git

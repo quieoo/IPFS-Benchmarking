@@ -224,6 +224,21 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 		fmt.Fprintf(os.Stderr, "error: %s", err)
 		os.Exit(1)
 	}
+
+	_, err = os.Stat("./output")
+	if err != nil {
+		if os.IsNotExist(err) {
+			err := os.Mkdir("./output", 0777)
+			if err != nil {
+				fmt.Printf("failed to mkdir: %v\n", err.Error())
+				return
+			}
+		} else {
+			fmt.Println(err.Error())
+			return
+		}
+	}
+
 	br := bufio.NewReader(file)
 	for {
 		torequest, _, err := br.ReadLine()
@@ -265,7 +280,6 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 }
 
 func main() {
-	/// --- Part I: Getting a IPFS node running
 
 	//read config option
 	flag.BoolVar(&(metrics.CMD_CloseBackProvide), "closebackprovide", false, "wether to close background provider")
@@ -277,18 +291,12 @@ func main() {
 	var filesize int
 	var filenumber int
 	var parallel int
-	var filename1 string
-	var filename2 string
-	var filename3 string
 	var filepersecond int
 	var cidfile string
 	var provideAfterGet bool
 	var neighboursPath string
 
 	flag.StringVar(&cmd, "c", "", "operation type")
-	flag.StringVar(&filename1, "f1", "", "name of file 1, output for gen, source for concat, file to add")
-	flag.StringVar(&filename2, "f2", "", "name of file 2, source for concat")
-	flag.StringVar(&filename3, "f3", "", "name of file 1, output for concat")
 	flag.StringVar(&cidfile, "cid", "cid", "name of cid file for uploading")
 
 	flag.IntVar(&filesize, "s", 256*1024, "file size")
@@ -310,11 +318,7 @@ func main() {
 	if cmd == "upload" {
 		ctx, ipfs, cancel := Ini()
 		defer cancel()
-		if filename1 != "" {
-			UploadFile(filename1, ctx, ipfs)
-		} else {
-			Upload(filesize, filenumber, parallel, ctx, ipfs, cidfile)
-		}
+		Upload(filesize, filenumber, parallel, ctx, ipfs, cidfile)
 		return
 	}
 	if cmd == "downloads" {
