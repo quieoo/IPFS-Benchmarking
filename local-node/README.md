@@ -1,8 +1,13 @@
+build ipfs node
 ````
 cd go-ipfs
 make build
 ````
-
+build benchmark node
+````
+cd local-node
+go build
+````
 
 usage:
 ````
