@@ -62,21 +62,33 @@ func main() {
 	var filesize int
 	var filenumber int
 	var http string
-	flag.IntVar(&filesize,"s",256*1024,"file size")
-	flag.IntVar(&filenumber,"n",0,"file nmber")
-	flag.StringVar(&http,"addr","127.0.0.1","target address")
+	flag.IntVar(&filesize, "s", 256*1024, "file size")
+	flag.IntVar(&filenumber, "n", 0, "file nmber")
+	flag.StringVar(&http, "p", "127.0.0.1", "ipv4 address of connect ipfs node (node should keep port 5001 open for rest api call)")
 	flag.Parse()
 
 	//api, err := httpapi.NewLocalApi()
-	muladr,_:=multiaddr.NewMultiaddr("/ip4/"+http+"/tcp/5001")
+	muladr, _ := multiaddr.NewMultiaddr("/ip4/" + http + "/tcp/5001")
 
-	api,err:=httpapi.NewApi(muladr)
+	api, err := httpapi.NewApi(muladr)
 	if err != nil {
 		fmt.Printf(err.Error())
 		return
 	}
 	tf := 0
-
+	_, err = os.Stat("./temp")
+	if err != nil {
+		if os.IsNotExist(err) {
+			err := os.Mkdir("./temp", 0777)
+			if err != nil {
+				fmt.Printf("failed to mkdir: %v\n", err.Error())
+				return
+			}
+		} else {
+			fmt.Println(err.Error())
+			return
+		}
+	}
 	for {
 		tf++
 		subs := NewLenChars(filesize, StdChars)
@@ -89,17 +101,16 @@ func main() {
 			os.Exit(1)
 		}
 
-		f,_:=getUnixfsNode(inputpath)
-		cid,err:=api.Unixfs().Add(context.Background(),f)
-		if err!=nil{
+		f, _ := getUnixfsNode(inputpath)
+		cid, err := api.Unixfs().Add(context.Background(), f)
+		if err != nil {
 			fmt.Printf(err.Error())
 		}
-		fmt.Printf("%s\n",cid)
-		if filenumber!=0{
-			if tf>=filenumber{
+		fmt.Printf("%s\n", cid)
+		if filenumber != 0 {
+			if tf >= filenumber {
 				break
 			}
 		}
 	}
 }
-

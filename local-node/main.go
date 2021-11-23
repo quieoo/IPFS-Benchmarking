@@ -296,7 +296,10 @@ func main() {
 	var provideAfterGet bool
 	var neighboursPath string
 
-	flag.StringVar(&cmd, "c", "", "operation type")
+	flag.StringVar(&cmd, "c", "", "operation type\n"+
+		"upload: upload files to ipfs, with -s for file size, -n for file number, -p for concurrent upload threads, -cid for specified uploaded file cid stored\n"+
+		"downloads: download file following specified cid file with single thread, -pag provide file after get, -np path to the file of neighbours which will be disconnected after each get\n"+
+		"default: spawning ipfs node\n")
 	flag.StringVar(&cidfile, "cid", "cid", "name of cid file for uploading")
 
 	flag.IntVar(&filesize, "s", 256*1024, "file size")
@@ -317,6 +320,7 @@ func main() {
 
 	if cmd == "upload" {
 		ctx, ipfs, cancel := Ini()
+
 		defer cancel()
 		Upload(filesize, filenumber, parallel, ctx, ipfs, cidfile)
 		return
