@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 	"metrics"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -299,7 +300,7 @@ func main() {
 	flag.StringVar(&cmd, "c", "", "operation type\n"+
 		"upload: upload files to ipfs, with -s for file size, -n for file number, -p for concurrent upload threads, -cid for specified uploaded file cid stored\n"+
 		"downloads: download file following specified cid file with single thread, -pag provide file after get, -np path to the file of neighbours which will be disconnected after each get\n"+
-		"default: spawning ipfs node\n")
+		"daemon: run ipfs daemon\n")
 	flag.StringVar(&cidfile, "cid", "cid", "name of cid file for uploading")
 
 	flag.IntVar(&filesize, "s", 256*1024, "file size")
@@ -330,6 +331,33 @@ func main() {
 		defer cancel()
 		DownloadSerial(ctx, ipfs, cidfile, provideAfterGet, neighboursPath)
 		return
+	}
+	if cmd == "daemon" {
+		cmd := exec.Command("./go-ipfs/cmd/ipfs/ipfs", "daemon")
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			fmt.Println("cmd.StdoutPipe: ", err)
+			return
+		}
+
+		err = cmd.Start()
+		if err != nil {
+			fmt.Println("failed to exec ipfs daemon: ", err.Error())
+			return
+		}
+		reader := bufio.NewReader(stdout)
+		for {
+			line, err2 := reader.ReadString('\n')
+			if err2 != nil || io.EOF == err2 {
+				break
+			}
+			fmt.Printf(line)
+		}
+		err = cmd.Wait()
+		if err != nil {
+			return
+		}
+
 	}
 	_, _, cancel := Ini()
 	defer cancel()
