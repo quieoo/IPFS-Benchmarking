@@ -1,5 +1,5 @@
 # server
-run http file server on localhost:8080, "/uploads" for uploading files, "/files" for downloading files
+run http file server on "localhost:8080", "/uploads" for uploading files, "/files" for downloading files
 ````
 go run server.go
 or
