@@ -19,7 +19,7 @@ download file:
 cd httpfs
 go run client.go -c download -fn filenames -h (server ip)
 ```
-#ipfs
+# ipfs
 ## on provider:
 ````
 cd local-node
