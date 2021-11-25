@@ -41,6 +41,7 @@ cd local-node
 ./main -c daemon
 ````
 copy "cids" to client local-node directory
+
 store provider's peer identity in file "neighbours"
 ## on client:
 ````
