@@ -5,8 +5,14 @@ go run server.go
 or
 go build server.go && ./server
 ````
-
+uploaded files saved in "./files/"
 # client
+build:
+````
+go run client.go
+of
+go build client.go && ./client
+````
 usage:
 ````
   -c string
@@ -23,3 +29,4 @@ usage:
   -s int
         file size (default 262144)
 ````
+downloaded files saved in "./downloaded/"
