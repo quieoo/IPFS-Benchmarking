@@ -4,3 +4,8 @@
 */temp/*
 */cids
 .idea
+/httpfs/client
+/httpfs/filenames
+/httpfs/server
+/httpfs/files/
+/httpfs/downloaded/
