@@ -19,7 +19,7 @@ download file:
 cd httpfs
 go run client.go -c download -fn filenames -h (server ip)
 ```
-# ipfs
+# ipfs-none-resolve
 ## on provider:
 ````
 cd local-node
@@ -31,4 +31,18 @@ copy "cids" to client local-node directory
 ## on client:
 ````
 ./main -c downloads -cid cids
+````
+
+# ipfs-resolve
+## on provider:
+````
+cd local-node
+./main -c upload -n 100 -s 262144 -cid cids
+./main -c daemon
+````
+copy "cids" to client local-node directory
+store provider's peer identity in file "neighbours"
+## on client:
+````
+./main -c downloads -cid cids -np neighbours
 ````

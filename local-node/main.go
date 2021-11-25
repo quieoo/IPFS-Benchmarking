@@ -154,7 +154,7 @@ func getUnixfsNode(path string) (files.Node, error) {
 }
 func UploadFile(file string, ctx context.Context, ipfs icore.CoreAPI) (icorepath.Resolved, error) {
 	start := time.Now()
-	defer metrics.UploadTimer.Update(time.Now().Sub(start))
+	defer metrics.UploadTimer.UpdateSince(start)
 	somefile, err := getUnixfsNode(file)
 	if err != nil {
 		return nil, err
@@ -185,7 +185,7 @@ func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, ci
 				return
 			}
 			finish := time.Now()
-			fmt.Printf("%s upload %f \n", cid.Cid(), finish.Sub(start).Seconds()*1000)
+			fmt.Printf("%s upload %f ms\n", cid.Cid(), finish.Sub(start).Seconds()*1000)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error: %s", err)
 				os.Exit(1)
@@ -215,7 +215,7 @@ func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, ci
 
 func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bool, np string) {
 	//logging.SetLogLevel("dht","debug")
-
+	firstRequest := true
 	neighbours, err := LocalNeighbour(np)
 	if err != nil || len(neighbours) == 0 {
 		fmt.Printf("no neighbours file specified, will not disconnect any neighbours after geting\n")
@@ -260,8 +260,12 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 		if err != nil {
 			panic(fmt.Errorf("Could not write out the fetched CID: %s", err))
 		}
-		metrics.DownloadTimer.Update(time.Now().Sub(start))
-		fmt.Printf("get file %s %f\n", cid, time.Now().Sub(start).Seconds()/1000)
+		if firstRequest {
+			firstRequest = false
+		} else {
+			metrics.DownloadTimer.UpdateSince(start)
+		}
+		fmt.Printf("get file %s %f\n", cid, time.Now().Sub(start).Seconds()*1000)
 		//remove peers
 		if pag {
 			err := ipfs.Dht().Provide(ctx, p)
@@ -298,6 +302,7 @@ func main() {
 	var cidfile string
 	var provideAfterGet bool
 	var neighboursPath string
+	var ipfsPath string
 
 	flag.StringVar(&cmd, "c", "", "operation type\n"+
 		"upload: upload files to ipfs, with -s for file size, -n for file number, -p for concurrent upload threads, -cid for specified uploaded file cid stored\n"+
@@ -313,6 +318,7 @@ func main() {
 
 	flag.StringVar(&neighboursPath, "np", "neighbours", "the path of file that records neighbours id, neighbours will be removed after geting file")
 
+	flag.StringVar(&ipfsPath, "ipfs", "./go-ipfs/cmd/ipfs/ipfs", "where go-ipfs exec exists")
 	flag.Parse()
 
 	if metrics.CMD_EnableMetrics {
@@ -334,7 +340,7 @@ func main() {
 		return
 	}
 	if cmd == "daemon" {
-		cmd := exec.Command("./go-ipfs/cmd/ipfs/ipfs", "daemon")
+		cmd := exec.Command(ipfsPath, "daemon")
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
 			fmt.Println("cmd.StdoutPipe: ", err)
