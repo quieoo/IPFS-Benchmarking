@@ -20,7 +20,16 @@ var PutManyTimer metrics.Timer
 var GetSizeTimer metrics.Timer
 var SyncFileTimer metrics.Timer
 
+var UploadTimer metrics.Timer
+var DownloadTimer metrics.Timer
+
 func TimersInit() {
+	UploadTimer = metrics.NewTimer()
+	metrics.Register("Upload", UploadTimer)
+
+	DownloadTimer = metrics.NewTimer()
+	metrics.Register("Download", DownloadTimer)
+
 	AddTimer = metrics.NewTimer()
 	metrics.Register("Add", AddTimer)
 
@@ -49,6 +58,9 @@ func TimersInit() {
 const MS = 1000000
 
 func OutputMetrics() {
+	fmt.Printf(standardOutput("Upload", UploadTimer))
+	fmt.Printf(standardOutput("Download", DownloadTimer))
+
 	addtotal := float64(AddTimer.Sum())
 	hastotal := float64(HasTimer.Sum())
 	gettotal := float64(GetTimer.Sum())
@@ -103,4 +115,7 @@ func GetBreakDownInit() {
 	GetTimeUse = 0
 	ResolveTimeUse = 0
 	GetFileNumber = 0
+}
+func standardOutput(function string, t metrics.Timer) string {
+	return fmt.Sprintf("%s: %d files, average latency: %f ms, 0.99P latency: %f ms\n", function, t.Count(), t.Mean()/MS, t.Percentile(float64(t.Count())*0.99)/MS)
 }

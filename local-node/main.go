@@ -153,6 +153,8 @@ func getUnixfsNode(path string) (files.Node, error) {
 	return f, nil
 }
 func UploadFile(file string, ctx context.Context, ipfs icore.CoreAPI) (icorepath.Resolved, error) {
+	start := time.Now()
+	defer metrics.UploadTimer.Update(time.Now().Sub(start))
 	somefile, err := getUnixfsNode(file)
 	if err != nil {
 		return nil, err
@@ -258,6 +260,7 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 		if err != nil {
 			panic(fmt.Errorf("Could not write out the fetched CID: %s", err))
 		}
+		metrics.DownloadTimer.Update(time.Now().Sub(start))
 		fmt.Printf("get file %s %f\n", cid, time.Now().Sub(start).Seconds()/1000)
 		//remove peers
 		if pag {
@@ -292,7 +295,6 @@ func main() {
 	var filesize int
 	var filenumber int
 	var parallel int
-	var filepersecond int
 	var cidfile string
 	var provideAfterGet bool
 	var neighboursPath string
@@ -306,7 +308,6 @@ func main() {
 	flag.IntVar(&filesize, "s", 256*1024, "file size")
 	flag.IntVar(&filenumber, "n", 1, "file number")
 	flag.IntVar(&parallel, "p", 1, "concurrent operation number")
-	flag.IntVar(&filepersecond, "fps", 0, "add file per second")
 
 	flag.BoolVar(&provideAfterGet, "pag", false, "whether to provide file after get it")
 
