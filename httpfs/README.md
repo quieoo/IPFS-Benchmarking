@@ -1,4 +1,4 @@
-#server
+# server
 run http file server on localhost:8080, "/uploads" for uploading files, "/files" for downloading files
 ````
 go run server.go
@@ -6,7 +6,7 @@ or
 go build server.go && ./server
 ````
 
-#client
+# client
 usage:
 ````
   -c string
