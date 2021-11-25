@@ -6,12 +6,16 @@ import (
 	"crypto/rand"
 	"flag"
 	"fmt"
+	"github.com/rcrowley/go-metrics"
 	"io"
 	"io/ioutil"
 	"mime/multipart"
 	"net/http"
 	"os"
+	"time"
 )
+
+const MS = 1000000
 
 func main() {
 	var cmd string
@@ -31,6 +35,9 @@ func main() {
 
 	flag.Parse()
 
+	uploadTimer := metrics.NewTimer()
+	downloadTimer := metrics.NewTimer()
+
 	if cmd == "upload" {
 		fn, _ := os.Create(filenames)
 		fmt.Printf("Uploading files with size %d B\n", filesize)
@@ -47,6 +54,7 @@ func main() {
 				return
 			}
 
+			uploadstart := time.Now()
 			//upload file
 			bodyBuffer := &bytes.Buffer{}
 			bodyWriter := multipart.NewWriter(bodyBuffer)
@@ -69,7 +77,7 @@ func main() {
 			resp.Body.Close()
 			file.Close()
 			//resp_body, _ := ioutil.ReadAll(resp.Body)
-
+			uploadTimer.Update(time.Now().Sub(uploadstart))
 			//name -> filename
 			_, err = io.WriteString(fn, name+"\n")
 			if err != nil {
@@ -87,6 +95,9 @@ func main() {
 				return
 			}
 		}
+
+		//output metrics
+		fmt.Printf(standardOutput("http-upload", uploadTimer))
 	} else if cmd == "download" {
 		file, err := os.Open(filenames)
 		defer file.Close()
@@ -101,9 +112,10 @@ func main() {
 			torequest, _, err := br.ReadLine()
 			if err != nil {
 				fmt.Println("downloading stall caused by ", err.Error())
+				fmt.Printf(standardOutput("http-download", downloadTimer))
 				return
 			}
-
+			downloadstrat := time.Now()
 			url := "http://" + host + ":8080/files/" + string(torequest)
 			res, err := http.Get(url)
 			if err != nil {
@@ -121,7 +133,7 @@ func main() {
 				fmt.Println("failed to copy response to local file: ", err.Error())
 				return
 			}
-
+			downloadTimer.Update(time.Now().Sub(downloadstrat))
 		}
 	}
 
@@ -174,4 +186,8 @@ func createDirIfNotExist(path string) {
 			return
 		}
 	}
+}
+
+func standardOutput(function string, t metrics.Timer) string {
+	return fmt.Sprintf("%s: %d files, average latency: %f ms, 0.99P latency: %f ms\n", function, t.Count(), t.Mean()/MS, t.Percentile(float64(t.Count())*0.99)/MS)
 }
