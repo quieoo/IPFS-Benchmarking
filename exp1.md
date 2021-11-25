@@ -5,7 +5,6 @@ latency and throughput comparison between http, ipfs, ipfs_rn(remove neighbours 
 ```
 cd httpfs
 go run server.go
-
 ```
 
 ## on client:
