@@ -28,7 +28,7 @@ cd local-node
 ````
 copy "cids" to client local-node directory
 
-##on client:
+## on client:
 ````
 ./main -c downloads -cid cids
 ````
