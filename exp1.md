@@ -1,5 +1,6 @@
 latency and throughput comparison between http, ipfs, ipfs_rn(remove neighbours after each requesting)
 # http
+>one example of uploading and download 100 files with size of 256KB
 ## on server:
 
 ```
@@ -8,7 +9,6 @@ go run server.go
 ```
 
 ## on client:
-one example of uploading and download 100 files with size of 256KB 
 upload file:
 ````
 cd httpfs
