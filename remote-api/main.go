@@ -45,6 +45,7 @@ func NewLenChars(length int, chars []byte) string {
 		}
 	}
 }
+
 func getUnixfsNode(path string) (files.Node, error) {
 	st, err := os.Stat(path)
 	if err != nil {
@@ -58,6 +59,7 @@ func getUnixfsNode(path string) (files.Node, error) {
 
 	return f, nil
 }
+
 func main() {
 	var filesize int
 	var filenumber int

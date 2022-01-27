@@ -23,6 +23,7 @@ var SyncFileTimer metrics.Timer
 var UploadTimer metrics.Timer
 var DownloadTimer metrics.Timer
 
+// TimersInit 实现了
 func TimersInit() {
 	UploadTimer = metrics.NewTimer()
 	metrics.Register("Upload", UploadTimer)

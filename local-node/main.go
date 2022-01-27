@@ -113,6 +113,8 @@ func spawnEphemeral(ctx context.Context) (icore.CoreAPI, error) {
 	// Spawning an ephemeral IPFS node
 	return createNode(ctx, repoPath)
 }
+
+
 func Ini() (context.Context, icore.CoreAPI, context.CancelFunc) {
 	fmt.Println("-- Getting an IPFS node running -- ")
 
@@ -287,6 +289,7 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 
 }
 
+// 实现了 daemon upload download 的功能
 func main() {
 
 	//read config option
@@ -308,6 +311,7 @@ func main() {
 		"upload: upload files to ipfs, with -s for file size, -n for file number, -p for concurrent upload threads, -cid for specified uploaded file cid stored\n"+
 		"downloads: download file following specified cid file with single thread, -pag provide file after get, -np path to the file of neighbours which will be disconnected after each get\n"+
 		"daemon: run ipfs daemon\n")
+	// TODO: 这个 cidfile 是指文件的逻辑的名字还是cid？
 	flag.StringVar(&cidfile, "cid", "cid", "name of cid file for uploading")
 
 	flag.IntVar(&filesize, "s", 256*1024, "file size")
