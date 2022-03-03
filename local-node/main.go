@@ -153,46 +153,130 @@ func getUnixfsNode(path string) (files.Node, error) {
 	return f, nil
 }
 func UploadFile(file string, ctx context.Context, ipfs icore.CoreAPI) (icorepath.Resolved, error) {
-	start := time.Now()
-	defer metrics.UploadTimer.UpdateSince(start)
+	ustart := time.Now()
+	defer func() {
+		metrics.UploadDura += time.Now().Sub(ustart)
+
+		metrics.UploadTimer.Update(metrics.UploadDura - metrics.AddDura)
+		metrics.AddTimer.Update(metrics.AddDura)
+		metrics.Provide.Update(metrics.ProvideDura)
+		metrics.Persist.Update(metrics.PersistDura)
+
+		dagTime := metrics.AddDura - metrics.ProvideDura - metrics.PersistDura
+		metrics.Dag.Update(dagTime)
+
+		metrics.HasTimer.Update(metrics.HasDura)
+
+		metrics.HasDura = 0
+		metrics.UploadDura = 0
+		metrics.AddDura = 0
+		metrics.ProvideDura = 0
+		metrics.PersistDura = 0
+	}()
 	somefile, err := getUnixfsNode(file)
 	if err != nil {
 		return nil, err
 	}
 	//start:=time.Now()
-
+	start := time.Now()
 	cid, err := ipfs.Unixfs().Add(ctx, somefile)
+	metrics.AddDura += time.Now().Sub(start)
 	//quieoo.AddTimer.UpdateSince(start)
 	return cid, err
 }
 
-func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, cids string) {
-	f, _ := os.Create(cids)
-
+func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, cids string, redun int) {
+	cidFile, _ := os.Create(cids)
 	fmt.Printf("Uploading files with size %d B\n", size)
 	coreNumber := cores
 	stallchan := make(chan int)
 	sendFunc := func(i int) {
+		tempDir := fmt.Sprintf("./temp%d", i)
+		//mkdir temp dir for temp files
+		err := os.MkdirAll(tempDir, os.ModePerm)
+		if err != nil {
+			fmt.Println(err)
+			stallchan <- i
+			return
+		}
+
+		//create temp files
 		for j := 0; j < number/coreNumber; j++ {
 			var subs string
 			subs = NewLenChars(size, StdChars)
-			inputpath := fmt.Sprintf("./temp %d", i)
-			err := ioutil.WriteFile(inputpath, []byte(subs), 0666)
-			start := time.Now()
-			cid, err := UploadFile(inputpath, ctx, ipfs)
+
+			// if redundancy rate is set, first upload files: [:redun/100*size]
+			if redun > 0 && redun <= 100 {
+				rsubs := subs[:redun*size/100]
+				tempfile := tempDir + "/temp"
+				err := ioutil.WriteFile(tempfile, []byte(rsubs), 0666)
+				if err != nil {
+					fmt.Println(err.Error())
+					stallchan <- i
+					return
+				}
+				start := time.Now()
+				cid, err := UploadFile(tempfile, ctx, ipfs)
+				if err != nil {
+					fmt.Println(err.Error())
+					stallchan <- i
+					return
+				}
+				fmt.Printf("%s sub-file %f ms\n", cid.Cid(), time.Now().Sub(start).Seconds()*1000)
+			}
+
+			inputpath := tempDir + "/" + subs[:10]
+			err = ioutil.WriteFile(inputpath, []byte(subs), 0666)
 			if err != nil {
 				fmt.Println(err.Error())
+				stallchan <- i
+				return
+			}
+		}
+		// if redundancy rate is set, we clear the metrics before real uploads
+		if redun > 0 && redun <= 100 {
+			metrics.TimersInit()
+		}
+		//upload temp files
+		tempfiles, err := ioutil.ReadDir(tempDir)
+		if err != nil {
+			fmt.Println(err.Error())
+			stallchan <- i
+			return
+		}
+		for _, f := range tempfiles {
+			tempFile := tempDir + "/" + f.Name()
+			start := time.Now()
+			cid, err := UploadFile(tempFile, ctx, ipfs)
+			if err != nil {
+				fmt.Println(err.Error())
+				stallchan <- i
 				return
 			}
 			finish := time.Now()
 			fmt.Printf("%s upload %f ms\n", cid.Cid(), finish.Sub(start).Seconds()*1000)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "error: %s", err)
-				os.Exit(1)
+				fmt.Println(err.Error())
+				stallchan <- i
+				return
 			}
-
-			io.WriteString(f, strings.Split(cid.String(), "/")[2]+"\n")
+			_, err = io.WriteString(cidFile, strings.Split(cid.String(), "/")[2]+"\n")
+			if err != nil {
+				fmt.Println(err.Error())
+				stallchan <- i
+				return
+			}
 		}
+
+		//remove temp dir
+		err = os.RemoveAll(tempDir)
+		if err != nil {
+			fmt.Println(err.Error())
+			stallchan <- i
+			return
+		}
+
+		//finish
 		stallchan <- i
 	}
 	for i := 0; i < coreNumber; i++ {
@@ -206,7 +290,7 @@ func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, ci
 			fmt.Printf("core finished\n")
 			stalls--
 			if stalls <= 0 {
-				f.Close()
+				cidFile.Close()
 				return
 			}
 		}
@@ -215,7 +299,6 @@ func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, ci
 
 func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bool, np string) {
 	//logging.SetLogLevel("dht","debug")
-	firstRequest := true
 	neighbours, err := LocalNeighbour(np)
 	if err != nil || len(neighbours) == 0 {
 		fmt.Printf("no neighbours file specified, will not disconnect any neighbours after geting\n")
@@ -260,11 +343,6 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 		if err != nil {
 			panic(fmt.Errorf("Could not write out the fetched CID: %s", err))
 		}
-		if firstRequest {
-			firstRequest = false
-		} else {
-			metrics.DownloadTimer.UpdateSince(start)
-		}
 		fmt.Printf("get file %s %f\n", cid, time.Now().Sub(start).Seconds()*1000)
 		//remove peers
 		if pag {
@@ -303,7 +381,9 @@ func main() {
 	var provideAfterGet bool
 	var neighboursPath string
 	var ipfsPath string
+	var redun_rate int
 
+	flag.IntVar(&redun_rate, "redun", 0, "The redundancy of the file when Benchmarking upload, 100 indicates that there is exactly the same file in the node, 0 means there is no existence of same file.(default 0)")
 	flag.StringVar(&cmd, "c", "", "operation type\n"+
 		"upload: upload files to ipfs, with -s for file size, -n for file number, -p for concurrent upload threads, -cid for specified uploaded file cid stored\n"+
 		"downloads: download file following specified cid file with single thread, -pag provide file after get, -np path to the file of neighbours which will be disconnected after each get\n"+
@@ -323,14 +403,14 @@ func main() {
 
 	if metrics.CMD_EnableMetrics {
 		metrics.TimersInit()
-		defer metrics.OutputMetrics()
+		defer metrics.Output_addBreakdown()
 	}
 
 	if cmd == "upload" {
 		ctx, ipfs, cancel := Ini()
 
 		defer cancel()
-		Upload(filesize, filenumber, parallel, ctx, ipfs, cidfile)
+		Upload(filesize, filenumber, parallel, ctx, ipfs, cidfile, redun_rate)
 		return
 	}
 	if cmd == "downloads" {

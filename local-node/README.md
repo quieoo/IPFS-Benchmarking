@@ -11,6 +11,9 @@ go build
 
 usage:
 ````
+localIPFSNode runs on a default path of ipfs (~/.ipfs), assuming that a repo exists there already. And if necessary, periodly clean the path during benchmarking.
+
+
 Usage of ./localIPFSNode:
   -c string
         operation type

@@ -3,6 +3,8 @@ package metrics
 import (
 	"fmt"
 	"github.com/rcrowley/go-metrics"
+	"runtime"
+	"time"
 )
 
 var CMD_CloseBackProvide = true
@@ -12,70 +14,78 @@ var CMD_CloseAddProvide = false
 var CMD_ImmeProvide = true
 var CMD_EnableMetrics = true
 
-var AddTimer metrics.Timer
-var HasTimer metrics.Timer
-var GetTimer metrics.Timer
-var PutTimer metrics.Timer
-var PutManyTimer metrics.Timer
-var GetSizeTimer metrics.Timer
-var SyncFileTimer metrics.Timer
-
 var UploadTimer metrics.Timer
-var DownloadTimer metrics.Timer
+var AddTimer metrics.Timer
+var Provide metrics.Timer
+var Persist metrics.Timer
+var Dag metrics.Timer
+var HasTimer metrics.Timer
+
+var HasDura time.Duration
+var PersistDura time.Duration
+var ProvideDura time.Duration
+var AddDura time.Duration
+var UploadDura time.Duration
+
+func call(skip int) {
+	pc, file, line, _ := runtime.Caller(skip)
+	pcName := runtime.FuncForPC(pc).Name()
+	fmt.Println(fmt.Sprintf("%s   %d   %s", file, line, pcName))
+}
+
+func PrintStack(toUP int) {
+	fmt.Println("-----------------------")
+	for i := 2; i < toUP+2; i++ {
+		call(i)
+	}
+	fmt.Println("-----------------------")
+}
 
 func TimersInit() {
+
 	UploadTimer = metrics.NewTimer()
 	metrics.Register("Upload", UploadTimer)
-
-	DownloadTimer = metrics.NewTimer()
-	metrics.Register("Download", DownloadTimer)
 
 	AddTimer = metrics.NewTimer()
 	metrics.Register("Add", AddTimer)
 
+	Provide = metrics.NewTimer()
+	metrics.Register("Provide", Provide)
+
+	Persist = metrics.NewTimer()
+	metrics.Register("Persist-Flush", Persist)
+
+	Dag = metrics.NewTimer()
+	metrics.Register("dag", Dag)
+
 	HasTimer = metrics.NewTimer()
-	metrics.Register("Has", HasTimer)
-
-	GetTimer = metrics.NewTimer()
-	metrics.Register("Get", GetTimer)
-
-	PutTimer = metrics.NewTimer()
-	metrics.Register("Put", PutTimer)
-
-	PutManyTimer = metrics.NewTimer()
-	metrics.Register("PutMany", PutManyTimer)
-
-	SyncFileTimer = metrics.NewTimer()
-	metrics.Register("SyncFile", SyncFileTimer)
-
-	GetSizeTimer = metrics.NewTimer()
-	metrics.Register("GetSize", GetSizeTimer)
-
+	metrics.Register("has", HasTimer)
 	//go metrics.Log(metrics.DefaultRegistry, 1 * time.Second,log.New(os.Stdout, "metrics: ", log.Lmicroseconds))
 
 }
 
 const MS = 1000000
 
-func OutputMetrics() {
-	fmt.Printf(standardOutput("Upload", UploadTimer))
-	fmt.Printf(standardOutput("Download", DownloadTimer))
+func OutputMetrics0() {
 
-	addtotal := float64(AddTimer.Sum())
-	hastotal := float64(HasTimer.Sum())
-	gettotal := float64(GetTimer.Sum())
-	puttotal := float64(PutTimer.Sum())
-	putmanytotal := float64(PutManyTimer.Sum())
-	synctotal := float64(SyncFileTimer.Sum())
-
+	//fmt.Printf(standardOutput("Upload", UploadTimer))
+	//addtotal := float64(AddTimer.Sum())
+	fmt.Printf("Upload: %d ,     avg- %f ms, 0.9p- %f ms \n", UploadTimer.Count(), UploadTimer.Mean()/MS, UploadTimer.Percentile(float64(UploadTimer.Count())*0.9)/MS)
 	fmt.Printf("Add: %d ,     avg- %f ms, 0.9p- %f ms \n", AddTimer.Count(), AddTimer.Mean()/MS, AddTimer.Percentile(float64(AddTimer.Count())*0.9)/MS)
-	fmt.Printf("Has: %d ,     avg- %f ms, %f, 0.9p- %f ms \n", HasTimer.Count(), HasTimer.Mean()/MS, hastotal/addtotal, HasTimer.Percentile(float64(HasTimer.Count())*0.9)/MS)
-	fmt.Printf("Get: %d ,     avg- %f ms, %f, 0.9p- %f ms \n", GetTimer.Count(), GetTimer.Mean()/MS, gettotal/addtotal, GetTimer.Percentile(float64(GetTimer.Count())*0.9)/MS)
-	fmt.Printf("Put: %d ,     avg- %f ms, %f, 0.9p- %f ms \n", PutTimer.Count(), PutTimer.Mean()/MS, puttotal/addtotal, PutTimer.Percentile(float64(PutTimer.Count())*0.9)/MS)
-	fmt.Printf("PutMany: %d , avg- %f ms, %f, 0.9p- %f ms \n", PutManyTimer.Count(), PutManyTimer.Mean()/MS, putmanytotal/addtotal, PutManyTimer.Percentile(float64(PutManyTimer.Count())*0.9)/MS)
-	fmt.Printf("SyncFile: %d ,avg- %f ms, %f, 0.9p- %f ms \n", SyncFileTimer.Count(), SyncFileTimer.Mean()/MS, synctotal/addtotal, SyncFileTimer.Percentile(float64(SyncFileTimer.Count())*0.9)/MS)
+	fmt.Printf("Provide: %d ,     avg- %f ms, 0.9p- %f ms \n", Provide.Count(), Provide.Mean()/MS, Provide.Percentile(float64(Provide.Count())*0.9)/MS)
+	fmt.Printf("Persist: %d ,     avg- %f ms, 0.9p- %f ms \n", Persist.Count(), Persist.Mean()/MS, Persist.Percentile(float64(Persist.Count())*0.9)/MS)
+	fmt.Printf("Dag: %d ,     avg- %f ms, 0.9p- %f ms \n", Dag.Count(), Dag.Mean()/MS, Dag.Percentile(float64(Dag.Count())*0.9)/MS)
 
-	fmt.Printf("GetSize: %d , avg- %f ms,0.9p- %f ms \n", GetSizeTimer.Count(), GetSizeTimer.Mean()/MS, GetSizeTimer.Percentile(float64(GetSizeTimer.Count())*0.9)/MS)
+	fmt.Printf("Has: %d ,     avg- %f ms, 0.9p- %f ms \n", HasTimer.Count(), HasTimer.Mean()/MS, HasTimer.Percentile(float64(HasTimer.Count())*0.9)/MS)
+
+}
+
+func Output_addBreakdown() {
+	fmt.Printf("avg(ms)    0.9p(ms)\n")
+	fmt.Printf("%f %f\n", UploadTimer.Mean()/MS, UploadTimer.Percentile(float64(UploadTimer.Count())*0.9)/MS)
+	fmt.Printf("%f %f\n", Provide.Mean()/MS, Provide.Percentile(float64(Provide.Count())*0.9)/MS)
+	fmt.Printf("%f %f\n", Persist.Mean()/MS, Persist.Percentile(float64(Persist.Count())*0.9)/MS)
+	fmt.Printf("%f %f\n", Dag.Mean()/MS, Dag.Percentile(float64(Dag.Count())*0.9)/MS)
 
 }
 
