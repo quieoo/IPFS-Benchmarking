@@ -165,9 +165,11 @@ func UploadFile(file string, ctx context.Context, ipfs icore.CoreAPI) (icorepath
 		dagTime := metrics.AddDura - metrics.ProvideDura - metrics.PersistDura
 		metrics.Dag.Update(dagTime)
 
-		metrics.HasTimer.Update(metrics.HasDura)
+		metrics.FlatfsHasTimer.Update(metrics.FlatfsHasDura)
+		metrics.FlatfsPut.Update(metrics.FlatfsPutDura)
 
-		metrics.HasDura = 0
+		metrics.FlatfsPutDura = 0
+		metrics.FlatfsHasDura = 0
 		metrics.UploadDura = 0
 		metrics.AddDura = 0
 		metrics.ProvideDura = 0
@@ -304,45 +306,54 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 		fmt.Printf("no neighbours file specified, will not disconnect any neighbours after geting\n")
 	}
 
+	//open cid file
 	file, err := os.Open(cids)
 	defer file.Close()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %s", err)
-		os.Exit(1)
+		fmt.Println(err.Error())
+		return
 	}
 
-	_, err = os.Stat("./output")
+	//create tmp dir to store downloaded files
+	tempDir := "./output"
+	err = os.MkdirAll(tempDir, os.ModePerm)
 	if err != nil {
-		if os.IsNotExist(err) {
-			err := os.Mkdir("./output", 0777)
-			if err != nil {
-				fmt.Printf("failed to mkdir: %v\n", err.Error())
-				return
-			}
-		} else {
-			fmt.Println(err.Error())
-			return
-		}
+		fmt.Println(err)
+		return
 	}
 
+	defer func() {
+		//finish downloading, remove temp dir
+		err = os.RemoveAll(tempDir)
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+	}()
+
+	//download
 	br := bufio.NewReader(file)
 	for {
 		torequest, _, err := br.ReadLine()
-		cid := string(torequest)
 		if err != nil {
+			// EOF -> finish downloading all files
 			fmt.Println(err.Error())
 			return
 		}
+
+		cid := string(torequest)
 		p := icorepath.New(cid)
 		start := time.Now()
 		rootNode, err := ipfs.Unixfs().Get(ctx, p)
 		if err != nil {
 			panic(fmt.Errorf("Could not get file with CID: %s", err))
 		}
-		err = files.WriteTo(rootNode, "./output/"+cid)
+		err = files.WriteTo(rootNode, tempDir+"/"+cid)
 		if err != nil {
 			panic(fmt.Errorf("Could not write out the fetched CID: %s", err))
 		}
+
+		metrics.DownloadTimer.UpdateSince(start)
+
 		fmt.Printf("get file %s %f\n", cid, time.Now().Sub(start).Seconds()*1000)
 		//remove peers
 		if pag {
@@ -362,10 +373,10 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 			}
 		}
 	}
-
 }
 
 func main() {
+	fmt.Println("test")
 
 	//read config option
 	flag.BoolVar(&(metrics.CMD_CloseBackProvide), "closebackprovide", false, "wether to close background provider")
@@ -403,7 +414,10 @@ func main() {
 
 	if metrics.CMD_EnableMetrics {
 		metrics.TimersInit()
-		defer metrics.Output_addBreakdown()
+		defer func() {
+			//metrics.Output_addBreakdown()
+			metrics.OutputMetrics0()
+		}()
 	}
 
 	if cmd == "upload" {
