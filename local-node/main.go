@@ -14,6 +14,7 @@ import (
 	"github.com/ipfs/go-ipfs/plugin/loader"
 	"github.com/ipfs/go-ipfs/repo/fsrepo"
 	icore "github.com/ipfs/interface-go-ipfs-core"
+	"github.com/ipfs/interface-go-ipfs-core/options"
 	icorepath "github.com/ipfs/interface-go-ipfs-core/path"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -22,8 +23,10 @@ import (
 	"metrics"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"crypto/rand"
@@ -53,7 +56,14 @@ func createTempRepo(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get temp dir: %s", err)
 	}*/
-	repoPath := "~/.ipfs"
+
+	u, err := user.Current()
+	if err != nil {
+		fmt.Println("failed to get home dir. ")
+	}
+	repoPath := u.HomeDir + "/.ipfs"
+
+	//repoPath := "~/.ipfs"  // '~'
 	// Create a config with default options and a 2048 bit key
 	cfg, err := config.Init(ioutil.Discard, 2048)
 	if err != nil {
@@ -62,7 +72,8 @@ func createTempRepo(ctx context.Context) (string, error) {
 
 	// Create the repo with the config
 	//err = fsrepo.Init(repoPath, cfg)
-	err = fsrepo.Init("~/.ipfs", cfg)
+	//err = fsrepo.Init("~/.ipfs", cfg)
+	err = fsrepo.Init(repoPath, cfg)
 	if err != nil {
 		return "", fmt.Errorf("failed to init ephemeral node: %s", err)
 	}
@@ -114,7 +125,6 @@ func spawnEphemeral(ctx context.Context) (icore.CoreAPI, error) {
 	return createNode(ctx, repoPath)
 }
 
-
 func Ini() (context.Context, icore.CoreAPI, context.CancelFunc) {
 	fmt.Println("-- Getting an IPFS node running -- ")
 
@@ -154,7 +164,7 @@ func getUnixfsNode(path string) (files.Node, error) {
 
 	return f, nil
 }
-func UploadFile(file string, ctx context.Context, ipfs icore.CoreAPI) (icorepath.Resolved, error) {
+func UploadFile(file string, ctx context.Context, ipfs icore.CoreAPI, chunker string) (icorepath.Resolved, error) {
 	start := time.Now()
 	defer metrics.UploadTimer.UpdateSince(start)
 	somefile, err := getUnixfsNode(file)
@@ -163,12 +173,24 @@ func UploadFile(file string, ctx context.Context, ipfs icore.CoreAPI) (icorepath
 	}
 	//start:=time.Now()
 
-	cid, err := ipfs.Unixfs().Add(ctx, somefile)
+	opts := []options.UnixfsAddOption{
+		options.Unixfs.Chunker(chunker),
+	}
+
+	// 设置一个手动的provide操作
+	cid, err := ipfs.Unixfs().Add(ctx, somefile, opts...)
+	p := icorepath.New(cid.String())
+	err = ipfs.Dht().Provide(ctx, p)
+	if err != nil {
+		fmt.Println("failed to upload file in function : UploadFile")
+		return nil, err
+	}
+	//ipfs.Dht().Provide() // 也就说，我们要手动的进行provide操作才行
 	//quieoo.AddTimer.UpdateSince(start)
 	return cid, err
 }
 
-func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, cids string) {
+func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, cids string, chunker string) {
 	f, _ := os.Create(cids)
 
 	fmt.Printf("Uploading files with size %d B\n", size)
@@ -181,7 +203,7 @@ func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, ci
 			inputpath := fmt.Sprintf("./temp %d", i)
 			err := ioutil.WriteFile(inputpath, []byte(subs), 0666)
 			start := time.Now()
-			cid, err := UploadFile(inputpath, ctx, ipfs)
+			cid, err := UploadFile(inputpath, ctx, ipfs, chunker)
 			if err != nil {
 				fmt.Println(err.Error())
 				return
@@ -215,9 +237,9 @@ func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, ci
 	}
 }
 
-func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bool, np string) {
+func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bool, np string, concurrentGet int) {
 	//logging.SetLogLevel("dht","debug")
-	firstRequest := true
+	//firstRequest := true
 	neighbours, err := LocalNeighbour(np)
 	if err != nil || len(neighbours) == 0 {
 		fmt.Printf("no neighbours file specified, will not disconnect any neighbours after geting\n")
@@ -244,48 +266,120 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 		}
 	}
 
-	br := bufio.NewReader(file)
-	for {
-		torequest, _, err := br.ReadLine()
-		cid := string(torequest)
-		if err != nil {
-			fmt.Println(err.Error())
-			return
-		}
-		p := icorepath.New(cid)
-		start := time.Now()
-		rootNode, err := ipfs.Unixfs().Get(ctx, p)
-		if err != nil {
-			panic(fmt.Errorf("Could not get file with CID: %s", err))
-		}
-		err = files.WriteTo(rootNode, "./output/"+cid)
-		if err != nil {
-			panic(fmt.Errorf("Could not write out the fetched CID: %s", err))
-		}
-		if firstRequest {
-			firstRequest = false
-		} else {
-			metrics.DownloadTimer.UpdateSince(start)
-		}
-		fmt.Printf("get file %s %f\n", cid, time.Now().Sub(start).Seconds()*1000)
-		//remove peers
-		if pag {
-			err := ipfs.Dht().Provide(ctx, p)
-			if err != nil {
-				fmt.Printf("failed to provide file after get: %v\n", err.Error())
-				return
-			}
-		}
+	// 把cid读到多个切片中
+	inputReader := bufio.NewReader(file)
 
-		if len(neighbours) != 0 {
-			for _, n := range neighbours {
-				err := DisconnectToPeers(ctx, ipfs, n)
+	fileCid := make([][]string, concurrentGet)
+	for i := range fileCid {
+		fileCid[i] = make([]string, 0)
+	}
+
+	tmpCnt := 0
+	for {
+		aLine, readErr := inputReader.ReadString('\n')
+		aLine = strings.TrimSuffix(aLine, "\n")
+		if readErr == io.EOF {
+			break
+		}
+		fileCid[tmpCnt%concurrentGet] = append(fileCid[tmpCnt%concurrentGet], aLine)
+		tmpCnt++
+	}
+
+	// 创建多个协程，分别去get文件
+	var wg sync.WaitGroup
+	wg.Add(concurrentGet)
+	for i := 0; i < concurrentGet; i++ {
+		go func(theOrder int) {
+			defer wg.Done()
+
+			// TODO: 我们把 first request 放到这里是合理的吗
+			firstRequest := true
+			for j := 0; j < len(fileCid[theOrder]); j++ {
+				cid := fileCid[theOrder][j]
+
+				p := icorepath.New(cid)
+				start := time.Now()
+				rootNode, err := ipfs.Unixfs().Get(ctx, p)
 				if err != nil {
-					fmt.Printf("failed to disconnect: %v\n", err)
+					panic(fmt.Errorf("Could not get file with CID: %s", err))
+				}
+				err = files.WriteTo(rootNode, "./output/"+cid)
+				if err != nil {
+					panic(fmt.Errorf("Could not write out the fetched CID: %s", err))
+				}
+				if firstRequest {
+					firstRequest = false
+				} else {
+					metrics.DownloadTimer.UpdateSince(start)
+				}
+				fmt.Printf("thread %d get file %s %f\n", theOrder, cid, time.Now().Sub(start).Seconds()*1000)
+
+				if pag {
+					err := ipfs.Dht().Provide(ctx, p)
+					if err != nil {
+						fmt.Printf("failed to provide file after get: %v\n", err.Error())
+						return
+					}
+				}
+
+				//remove peers
+				if len(neighbours) != 0 {
+					for _, n := range neighbours {
+						err := DisconnectToPeers(ctx, ipfs, n)
+						if err != nil {
+							fmt.Printf("failed to disconnect: %v\n", err)
+						}
+					}
 				}
 			}
-		}
+
+		}(i)
 	}
+	wg.Wait()
+
+	//br := bufio.NewReader(file)
+	//for {
+	//	torequest, _, err := br.ReadLine()
+	//	cid := string(torequest)
+	//	if err != nil {
+	//		fmt.Println(err.Error())
+	//		return
+	//	}
+	//	p := icorepath.New(cid)
+	//	start := time.Now()
+	//	rootNode, err := ipfs.Unixfs().Get(ctx, p)
+	//	if err != nil {
+	//		panic(fmt.Errorf("Could not get file with CID: %s", err))
+	//	}
+	//	err = files.WriteTo(rootNode, "./output/"+cid)
+	//	if err != nil {
+	//		panic(fmt.Errorf("Could not write out the fetched CID: %s", err))
+	//	}
+	//	if firstRequest {
+	//		firstRequest = false
+	//	} else {
+	//		metrics.DownloadTimer.UpdateSince(start)
+	//	}
+	//	fmt.Printf("get file %s %f\n", cid, time.Now().Sub(start).Seconds()*1000)
+	//
+	//	if pag {
+	//		err := ipfs.Dht().Provide(ctx, p)
+	//		if err != nil {
+	//			fmt.Printf("failed to provide file after get: %v\n", err.Error())
+	//			return
+	//		}
+	//	}
+	//
+	//	//remove peers
+	//	if len(neighbours) != 0 {
+	//		for _, n := range neighbours {
+	//			err := DisconnectToPeers(ctx, ipfs, n)
+	//			if err != nil {
+	//				fmt.Printf("failed to disconnect: %v\n", err)
+	//			}
+	//		}
+	//	}
+	//}
 
 }
 
@@ -302,10 +396,12 @@ func main() {
 	var filesize int
 	var filenumber int
 	var parallel int
+	var concurrentGet int
 	var cidfile string
 	var provideAfterGet bool
 	var neighboursPath string
 	var ipfsPath string
+	var chunker string
 
 	flag.StringVar(&cmd, "c", "", "operation type\n"+
 		"upload: upload files to ipfs, with -s for file size, -n for file number, -p for concurrent upload threads, -cid for specified uploaded file cid stored\n"+
@@ -317,6 +413,8 @@ func main() {
 	flag.IntVar(&filesize, "s", 256*1024, "file size")
 	flag.IntVar(&filenumber, "n", 1, "file number")
 	flag.IntVar(&parallel, "p", 1, "concurrent operation number")
+	flag.IntVar(&concurrentGet, "cg", 1, "concurrent get number")
+	flag.StringVar(&chunker, "chunker", "size-262144", "customized chunker")
 
 	flag.BoolVar(&provideAfterGet, "pag", false, "whether to provide file after get it")
 
@@ -334,13 +432,13 @@ func main() {
 		ctx, ipfs, cancel := Ini()
 
 		defer cancel()
-		Upload(filesize, filenumber, parallel, ctx, ipfs, cidfile)
+		Upload(filesize, filenumber, parallel, ctx, ipfs, cidfile, chunker)
 		return
 	}
 	if cmd == "downloads" {
 		ctx, ipfs, cancel := Ini()
 		defer cancel()
-		DownloadSerial(ctx, ipfs, cidfile, provideAfterGet, neighboursPath)
+		DownloadSerial(ctx, ipfs, cidfile, provideAfterGet, neighboursPath, concurrentGet)
 		return
 	}
 	if cmd == "daemon" {

@@ -12,6 +12,8 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -21,6 +23,7 @@ func main() {
 	var cmd string
 	var filesize int
 	var filenumber int
+	var concurrentGet int
 	var filenames string
 	var host string
 	const downloadfilepath = "downloaded"
@@ -30,6 +33,7 @@ func main() {
 		"download: download files following specified filename\n")
 	flag.IntVar(&filesize, "s", 256*1024, "file size")
 	flag.IntVar(&filenumber, "n", 1, "file number")
+	flag.IntVar(&concurrentGet, "cg", 1, "concurrent get number")
 	flag.StringVar(&filenames, "fn", "filenames", "name of files for uploading")
 	flag.StringVar(&host, "h", "127.0.0.1", "server address")
 
@@ -105,36 +109,100 @@ func main() {
 			fmt.Println("failed to open filenames to read file name: ", err.Error())
 			return
 		}
-		br := bufio.NewReader(file)
+		//br := bufio.NewReader(file)
 
 		createDirIfNotExist(downloadfilepath)
-		for {
-			torequest, _, err := br.ReadLine()
-			if err != nil {
-				fmt.Println("downloading stall caused by ", err.Error())
-				fmt.Printf(standardOutput("http-download", downloadTimer))
-				return
-			}
-			downloadstrat := time.Now()
-			url := "http://" + host + ":8080/files/" + string(torequest)
-			res, err := http.Get(url)
-			if err != nil {
-				fmt.Println("failed to request file: ", err.Error())
-				return
-			}
 
-			f, err := os.Create(downloadfilepath + "/" + string(torequest))
-			if err != nil {
-				fmt.Println("failed to create local file: ", err.Error())
-				return
-			}
-			_, err = io.Copy(f, res.Body)
-			if err != nil {
-				fmt.Println("failed to copy response to local file: ", err.Error())
-				return
-			}
-			downloadTimer.Update(time.Now().Sub(downloadstrat))
+		// 把cid读到多个切片中
+		inputReader := bufio.NewReader(file)
+
+		allFileName := make([][]string, concurrentGet)
+		for i := range allFileName {
+			allFileName[i] = make([]string, 0)
 		}
+
+		tmpCnt := 0
+		for {
+			aLine, readErr := inputReader.ReadString('\n')
+			aLine = strings.TrimSuffix(aLine, "\n")
+			if readErr == io.EOF {
+				break
+			}
+			allFileName[tmpCnt%concurrentGet] = append(allFileName[tmpCnt%concurrentGet], aLine)
+			tmpCnt++
+		}
+
+		// 创建多个协程，分别去get文件
+		var wg sync.WaitGroup
+		wg.Add(concurrentGet)
+		for i := 0; i < concurrentGet; i++ {
+			go func(theOrder int) {
+				defer wg.Done()
+				for j := 0; j < len(allFileName[theOrder]); j++ {
+					toRequest := allFileName[theOrder][j]
+
+					downloadstrat := time.Now()
+					url := "http://" + host + ":8080/files/" + toRequest
+					res, err := http.Get(url)
+					if err != nil {
+						fmt.Println("failed to request file: ", err.Error())
+						return
+					}
+
+					f, err := os.Create(downloadfilepath + "/" + toRequest)
+					if err != nil {
+						fmt.Println("failed to create local file: ", err.Error())
+						return
+					}
+					_, err = io.Copy(f, res.Body)
+					if err != nil {
+						fmt.Println("failed to copy response to local file: ", err.Error())
+						return
+					}
+					downloadTimer.Update(time.Now().Sub(downloadstrat))
+
+					if err != nil {
+						fmt.Printf("thread %d downloading stall caused by %s", theOrder, err.Error())
+						fmt.Printf(standardOutput("http-download", downloadTimer))
+						return
+					} else if j == len(allFileName[theOrder])-1 {
+						fmt.Printf("thread %d downloading stall caused by havingfilesystem:https://docs.google.com/persistent/docs/documents/1HT8zjCAQULYnfpc_EahYXJ0MRoEIW53cR_zucqMB7wU/image/PLACEHOLDER_1e1273deb9e66546_0 downloaded all needed files.\n", theOrder)
+						fmt.Printf(standardOutput("http-download", downloadTimer))
+						return
+					}
+				}
+
+			}(i)
+		}
+		wg.Wait()
+
+		//for {
+		//	torequest, _, err := br.ReadLine()
+		//	if err != nil {
+		//		fmt.Println("downloading stall caused by ", err.Error())
+		//		fmt.Printf(standardOutput("http-download", downloadTimer))
+		//		return
+		//	}
+		//	downloadstrat := time.Now()
+		//	url := "http://" + host + ":8080/files/" + string(torequest)
+		//	res, err := http.Get(url)
+		//	if err != nil {
+		//		fmt.Println("failed to request file: ", err.Error())
+		//		return
+		//	}
+		//
+		//	f, err := os.Create(downloadfilepath + "/" + string(torequest))
+		//	if err != nil {
+		//		fmt.Println("failed to create local file: ", err.Error())
+		//		return
+		//	}
+		//	_, err = io.Copy(f, res.Body)
+		//	if err != nil {
+		//		fmt.Println("failed to copy response to local file: ", err.Error())
+		//		return
+		//	}
+		//	downloadTimer.Update(time.Now().Sub(downloadstrat))
+		//}
 	}
 
 }
