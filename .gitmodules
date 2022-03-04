@@ -16,3 +16,6 @@
 [submodule "local-node/go-ipld-format"]
 	path = local-node/go-ipld-format
 	url = https://github.com/quieoo/go-ipld-format.git
+[submodule "local-node/go-ds-flatfs"]
+	path = local-node/go-ds-flatfs
+	url = https://github.com/quieoo/go-ds-flatfs.git

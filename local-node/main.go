@@ -376,7 +376,6 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 }
 
 func main() {
-	fmt.Println("test")
 
 	//read config option
 	flag.BoolVar(&(metrics.CMD_CloseBackProvide), "closebackprovide", false, "wether to close background provider")

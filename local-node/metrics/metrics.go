@@ -19,13 +19,20 @@ var AddTimer metrics.Timer
 var Provide metrics.Timer
 var Persist metrics.Timer
 var Dag metrics.Timer
-var HasTimer metrics.Timer
 
-var HasDura time.Duration
 var PersistDura time.Duration
 var ProvideDura time.Duration
 var AddDura time.Duration
 var UploadDura time.Duration
+
+var FlatfsHasTimer metrics.Timer
+var FlatfsHasDura time.Duration
+
+var FlatfsPut metrics.Timer
+var FlatfsPutDura time.Duration
+
+var GetTimer metrics.Timer
+var DownloadTimer metrics.Timer
 
 func call(skip int) {
 	pc, file, line, _ := runtime.Caller(skip)
@@ -58,8 +65,17 @@ func TimersInit() {
 	Dag = metrics.NewTimer()
 	metrics.Register("dag", Dag)
 
-	HasTimer = metrics.NewTimer()
-	metrics.Register("has", HasTimer)
+	FlatfsHasTimer = metrics.NewTimer()
+	metrics.Register("flafshas", FlatfsHasTimer)
+
+	FlatfsPut = metrics.NewTimer()
+	metrics.Register("flatfsPut", FlatfsPut)
+
+	GetTimer = metrics.NewTimer()
+	metrics.Register("Get", GetTimer)
+
+	DownloadTimer = metrics.NewTimer()
+	metrics.Register("Download", DownloadTimer)
 	//go metrics.Log(metrics.DefaultRegistry, 1 * time.Second,log.New(os.Stdout, "metrics: ", log.Lmicroseconds))
 
 }
@@ -75,8 +91,11 @@ func OutputMetrics0() {
 	fmt.Printf("Provide: %d ,     avg- %f ms, 0.9p- %f ms \n", Provide.Count(), Provide.Mean()/MS, Provide.Percentile(float64(Provide.Count())*0.9)/MS)
 	fmt.Printf("Persist: %d ,     avg- %f ms, 0.9p- %f ms \n", Persist.Count(), Persist.Mean()/MS, Persist.Percentile(float64(Persist.Count())*0.9)/MS)
 	fmt.Printf("Dag: %d ,     avg- %f ms, 0.9p- %f ms \n", Dag.Count(), Dag.Mean()/MS, Dag.Percentile(float64(Dag.Count())*0.9)/MS)
+	fmt.Printf("HasTimer: %d ,     avg- %f ms, 0.9p- %f ms \n", FlatfsHasTimer.Count(), FlatfsHasTimer.Mean()/MS, FlatfsHasTimer.Percentile(float64(FlatfsHasTimer.Count())*0.9)/MS)
+	fmt.Printf("FlatfsPut: %d ,     avg- %f ms, 0.9p- %f ms \n", FlatfsPut.Count(), FlatfsPut.Mean()/MS, FlatfsPut.Percentile(float64(FlatfsPut.Count())*0.9)/MS)
 
-	fmt.Printf("Has: %d ,     avg- %f ms, 0.9p- %f ms \n", HasTimer.Count(), HasTimer.Mean()/MS, HasTimer.Percentile(float64(HasTimer.Count())*0.9)/MS)
+	fmt.Printf("Download: %d ,     avg- %f ms, 0.9p- %f ms \n", DownloadTimer.Count(), DownloadTimer.Mean()/MS, DownloadTimer.Percentile(float64(DownloadTimer.Count())*0.9)/MS)
+	fmt.Printf("Get: %d ,     avg- %f ms, 0.9p- %f ms \n", GetTimer.Count(), GetTimer.Mean()/MS, GetTimer.Percentile(float64(GetTimer.Count())*0.9)/MS)
 
 }
 
@@ -86,7 +105,6 @@ func Output_addBreakdown() {
 	fmt.Printf("%f %f\n", Provide.Mean()/MS, Provide.Percentile(float64(Provide.Count())*0.9)/MS)
 	fmt.Printf("%f %f\n", Persist.Mean()/MS, Persist.Percentile(float64(Persist.Count())*0.9)/MS)
 	fmt.Printf("%f %f\n", Dag.Mean()/MS, Dag.Percentile(float64(Dag.Count())*0.9)/MS)
-
 }
 
 var AddTimeUse float64
