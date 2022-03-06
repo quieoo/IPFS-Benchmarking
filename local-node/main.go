@@ -180,7 +180,10 @@ func UploadFile(file string, ctx context.Context, ipfs icore.CoreAPI, chunker st
 	// 设置一个手动的provide操作
 	cid, err := ipfs.Unixfs().Add(ctx, somefile, opts...)
 	p := icorepath.New(cid.String())
+	startProvide := time.Now()
 	err = ipfs.Dht().Provide(ctx, p)
+	metrics.AddProvideTimer.UpdateSince(startProvide)
+
 	if err != nil {
 		fmt.Println("failed to upload file in function : UploadFile")
 		return nil, err
@@ -292,7 +295,6 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 		go func(theOrder int) {
 			defer wg.Done()
 
-			// TODO: 我们把 first request 放到这里是合理的吗
 			firstRequest := true
 			for j := 0; j < len(fileCid[theOrder]); j++ {
 				cid := fileCid[theOrder][j]
@@ -407,7 +409,6 @@ func main() {
 		"upload: upload files to ipfs, with -s for file size, -n for file number, -p for concurrent upload threads, -cid for specified uploaded file cid stored\n"+
 		"downloads: download file following specified cid file with single thread, -pag provide file after get, -np path to the file of neighbours which will be disconnected after each get\n"+
 		"daemon: run ipfs daemon\n")
-	// TODO: 这个 cidfile 是指文件的逻辑的名字还是cid？
 	flag.StringVar(&cidfile, "cid", "cid", "name of cid file for uploading")
 
 	flag.IntVar(&filesize, "s", 256*1024, "file size")

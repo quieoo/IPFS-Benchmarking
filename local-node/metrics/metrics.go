@@ -19,6 +19,7 @@ var PutTimer metrics.Timer
 var PutManyTimer metrics.Timer
 var GetSizeTimer metrics.Timer
 var SyncFileTimer metrics.Timer
+var AddProvideTimer metrics.Timer
 
 var UploadTimer metrics.Timer
 var DownloadTimer metrics.Timer
@@ -52,6 +53,9 @@ func TimersInit() {
 	GetSizeTimer = metrics.NewTimer()
 	metrics.Register("GetSize", GetSizeTimer)
 
+	AddProvideTimer = metrics.NewTimer()
+	metrics.Register("AddProvide", AddProvideTimer)
+
 	//go metrics.Log(metrics.DefaultRegistry, 1 * time.Second,log.New(os.Stdout, "metrics: ", log.Lmicroseconds))
 
 }
@@ -61,6 +65,7 @@ const MS = 1000000
 func OutputMetrics() {
 	fmt.Printf(standardOutput("Upload", UploadTimer))
 	fmt.Printf(standardOutput("Download", DownloadTimer))
+	fmt.Printf(standardOutput("AddProvide", AddProvideTimer))
 
 	addtotal := float64(AddTimer.Sum())
 	hastotal := float64(HasTimer.Sum())
