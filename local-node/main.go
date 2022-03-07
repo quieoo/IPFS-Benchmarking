@@ -199,13 +199,12 @@ func UploadFile(file string, ctx context.Context, ipfs icore.CoreAPI, chunker st
 		options.Unixfs.Chunker(chunker),
 	}
 	start := time.Now()
-	cid, err := ipfs.Unixfs().Add(ctx, somefile, opts)
+	cid, err := ipfs.Unixfs().Add(ctx, somefile, opts...)
 	metrics.AddDura += time.Now().Sub(start)
 
 	// TODO: it is possibly better to add a para in the function para. It would effect
 	//  the speed if we do a test for adding files locally. I didn't comment these lines
 	//  for expr2~4 working normally.
-	cid, err := ipfs.Unixfs().Add(ctx, somefile, opts...)
 	p := icorepath.New(cid.String())
 	startProvide := time.Now()
 	err = ipfs.Dht().Provide(ctx, p)
@@ -253,7 +252,8 @@ func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, ci
 					return
 				}
 				start := time.Now()
-				cid, err := UploadFile(tempfile, ctx, ipfs)
+				// NOTE: I added a chunker parameter.
+				cid, err := UploadFile(tempfile, ctx, ipfs, chunker)
 				if err != nil {
 					fmt.Println(err.Error())
 					stallchan <- i
