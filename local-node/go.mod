@@ -17,5 +17,8 @@ replace (
 	github.com/ipfs/go-bitswap => ./go-bitswap/
 	github.com/ipfs/go-ipfs => ./go-ipfs/
 	github.com/ipfs/go-ipfs-provider => ./go-ipfs-provider/
+	github.com/ipfs/go-merkledag => ./go-merkledag/
+	github.com/ipfs/go-ipld-format => ./go-ipld-format/
+	github.com/ipfs/go-ds-flatfs => ./go-ds-flatfs/
 	metrics => ./metrics/
 )

@@ -10,3 +10,12 @@
 [submodule "local-node/go-ipfs-provider"]
 	path = local-node/go-ipfs-provider
 	url = https://github.com/quieoo/go-ipfs-provider.git
+[submodule "local-node/go-merkledag"]
+	path = local-node/go-merkledag
+	url = https://github.com/quieoo/go-merkledag.git
+[submodule "local-node/go-ipld-format"]
+	path = local-node/go-ipld-format
+	url = https://github.com/quieoo/go-ipld-format.git
+[submodule "local-node/go-ds-flatfs"]
+	path = local-node/go-ds-flatfs
+	url = https://github.com/quieoo/go-ds-flatfs.git
