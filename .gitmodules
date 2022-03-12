@@ -19,3 +19,12 @@
 [submodule "local-node/go-ds-flatfs"]
 	path = local-node/go-ds-flatfs
 	url = https://github.com/quieoo/go-ds-flatfs.git
+[submodule "local-node/go-blockservice"]
+	path = local-node/go-blockservice
+	url = https://github.com/quieoo/go-blockservice.git
+[submodule "local-node/go-unixfs"]
+	path = local-node/go-unixfs
+	url = https://github.com/quieoo/go-unixfs.git
+[submodule "local-node/go-libp2p-kad-dht"]
+	path = local-node/go-libp2p-kad-dht
+	url = https://github.com/quieoo/go-libp2p-kad-dht.git

@@ -13,6 +13,7 @@ import (
 	"github.com/ipfs/go-ipfs/core/node/libp2p"
 	"github.com/ipfs/go-ipfs/plugin/loader"
 	"github.com/ipfs/go-ipfs/repo/fsrepo"
+	logging "github.com/ipfs/go-log"
 	icore "github.com/ipfs/interface-go-ipfs-core"
 	icorepath "github.com/ipfs/interface-go-ipfs-core/path"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -153,11 +154,8 @@ func getUnixfsNode(path string) (files.Node, error) {
 	return f, nil
 }
 func UploadFile(file string, ctx context.Context, ipfs icore.CoreAPI) (icorepath.Resolved, error) {
-	ustart := time.Now()
 	defer func() {
-		metrics.UploadDura += time.Now().Sub(ustart)
 
-		metrics.UploadTimer.Update(metrics.UploadDura - metrics.AddDura)
 		metrics.AddTimer.Update(metrics.AddDura)
 		metrics.Provide.Update(metrics.ProvideDura)
 		metrics.Persist.Update(metrics.PersistDura)
@@ -170,19 +168,19 @@ func UploadFile(file string, ctx context.Context, ipfs icore.CoreAPI) (icorepath
 
 		metrics.FlatfsPutDura = 0
 		metrics.FlatfsHasDura = 0
-		metrics.UploadDura = 0
 		metrics.AddDura = 0
 		metrics.ProvideDura = 0
 		metrics.PersistDura = 0
 	}()
+	start := time.Now()
 	somefile, err := getUnixfsNode(file)
 	if err != nil {
 		return nil, err
 	}
 	//start:=time.Now()
-	start := time.Now()
 	cid, err := ipfs.Unixfs().Add(ctx, somefile)
 	metrics.AddDura += time.Now().Sub(start)
+
 	//quieoo.AddTimer.UpdateSince(start)
 	return cid, err
 }
@@ -241,6 +239,7 @@ func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, ci
 		}
 		//upload temp files
 		tempfiles, err := ioutil.ReadDir(tempDir)
+		firstupload := true
 		if err != nil {
 			fmt.Println(err.Error())
 			stallchan <- i
@@ -250,6 +249,16 @@ func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, ci
 			tempFile := tempDir + "/" + f.Name()
 			start := time.Now()
 			cid, err := UploadFile(tempFile, ctx, ipfs)
+			if metrics.CMD_ProvideFirst && firstupload {
+				firstupload = false
+				err := ipfs.Dht().Provide(ctx, cid)
+				if err != nil {
+					fmt.Printf("failed to provide file: %v\n", err.Error())
+					stallchan <- i
+					return
+				}
+			}
+
 			if err != nil {
 				fmt.Println(err.Error())
 				stallchan <- i
@@ -279,7 +288,7 @@ func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, ci
 		}
 
 		//finish
-		stallchan <- i
+		//stallchan <- i
 	}
 	for i := 0; i < coreNumber; i++ {
 		go sendFunc(i)
@@ -343,6 +352,7 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 		cid := string(torequest)
 		p := icorepath.New(cid)
 		start := time.Now()
+		metrics.BDMonitor.GetStartTime = start
 		rootNode, err := ipfs.Unixfs().Get(ctx, p)
 		if err != nil {
 			panic(fmt.Errorf("Could not get file with CID: %s", err))
@@ -352,10 +362,12 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 			panic(fmt.Errorf("Could not write out the fetched CID: %s", err))
 		}
 
-		metrics.DownloadTimer.UpdateSince(start)
+		metrics.BDMonitor.GetFinishTime = time.Now()
+		metrics.Output_Get_SingleFile()
+		metrics.BDMonitor = metrics.Newmonitor()
 
 		fmt.Printf("get file %s %f\n", cid, time.Now().Sub(start).Seconds()*1000)
-		//remove peers
+		//provide after get
 		if pag {
 			err := ipfs.Dht().Provide(ctx, p)
 			if err != nil {
@@ -364,6 +376,7 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 			}
 		}
 
+		//remove neighbours
 		if len(neighbours) != 0 {
 			for _, n := range neighbours {
 				err := DisconnectToPeers(ctx, ipfs, n)
@@ -382,6 +395,7 @@ func main() {
 	flag.BoolVar(&(metrics.CMD_CloseLANDHT), "closelan", false, "whether to close lan dht")
 	flag.BoolVar(&(metrics.CMD_CloseDHTRefresh), "closedhtrefresh", false, "whether to close dht refresh")
 	flag.BoolVar(&(metrics.CMD_EnableMetrics), "enablemetrics", true, "whether to enable metrics")
+	flag.BoolVar(&(metrics.CMD_ProvideFirst), "providefirst", false, "manually provide file after upload")
 
 	var cmd string
 	var filesize int
@@ -392,6 +406,7 @@ func main() {
 	var neighboursPath string
 	var ipfsPath string
 	var redun_rate int
+	var logLevel string
 
 	flag.IntVar(&redun_rate, "redun", 0, "The redundancy of the file when Benchmarking upload, 100 indicates that there is exactly the same file in the node, 0 means there is no existence of same file.(default 0)")
 	flag.StringVar(&cmd, "c", "", "operation type\n"+
@@ -409,14 +424,30 @@ func main() {
 	flag.StringVar(&neighboursPath, "np", "neighbours", "the path of file that records neighbours id, neighbours will be removed after geting file")
 
 	flag.StringVar(&ipfsPath, "ipfs", "./go-ipfs/cmd/ipfs/ipfs", "where go-ipfs exec exists")
+	flag.StringVar(&logLevel, "logl", "error", "log level, output subsystem 'bitswap' and 'dht'. levels: debug-info-warn-error-")
+
 	flag.Parse()
 
 	if metrics.CMD_EnableMetrics {
 		metrics.TimersInit()
 		defer func() {
 			//metrics.Output_addBreakdown()
-			metrics.OutputMetrics0()
 		}()
+	}
+	err := logging.SetLogLevel("bitswap", logLevel)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	err = logging.SetLogLevel("dht", logLevel)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	err = logging.SetLogLevel("blockservice", logLevel)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
 	}
 
 	if cmd == "upload" {
@@ -429,6 +460,7 @@ func main() {
 	if cmd == "downloads" {
 		ctx, ipfs, cancel := Ini()
 		defer cancel()
+
 		DownloadSerial(ctx, ipfs, cidfile, provideAfterGet, neighboursPath)
 		return
 	}
@@ -546,7 +578,7 @@ func DisconnectToPeers(ctx context.Context, ipfs icore.CoreAPI, remove string) e
 		if err != nil {
 			fmt.Println(err.Error())
 		}
-		//fmt.Printf("disconnect from %v\n",addrs)
+		// fmt.Printf("disconnect from %v\n", addrs)
 
 		for _, addr := range addrs {
 			err = ipfs.Swarm().Disconnect(ctx, addr)

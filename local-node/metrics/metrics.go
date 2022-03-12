@@ -7,14 +7,21 @@ import (
 	"time"
 )
 
+// some global flag
+
 var CMD_CloseBackProvide = true
 var CMD_CloseLANDHT = false
 var CMD_CloseDHTRefresh = false
 var CMD_CloseAddProvide = false
-var CMD_ImmeProvide = true
+var CMD_ProvideFirst = true
 var CMD_EnableMetrics = true
 
-var UploadTimer metrics.Timer
+var TimerPin []metrics.Timer
+var pinNumber = 2
+var TimePin time.Time
+
+// ADD Metrics
+
 var AddTimer metrics.Timer
 var Provide metrics.Timer
 var Persist metrics.Timer
@@ -23,7 +30,6 @@ var Dag metrics.Timer
 var PersistDura time.Duration
 var ProvideDura time.Duration
 var AddDura time.Duration
-var UploadDura time.Duration
 
 var FlatfsHasTimer metrics.Timer
 var FlatfsHasDura time.Duration
@@ -31,8 +37,9 @@ var FlatfsHasDura time.Duration
 var FlatfsPut metrics.Timer
 var FlatfsPutDura time.Duration
 
-var GetTimer metrics.Timer
-var DownloadTimer metrics.Timer
+// Get Metrics
+
+var BDMonitor *Monitor
 
 func call(skip int) {
 	pc, file, line, _ := runtime.Caller(skip)
@@ -49,9 +56,11 @@ func PrintStack(toUP int) {
 }
 
 func TimersInit() {
-
-	UploadTimer = metrics.NewTimer()
-	metrics.Register("Upload", UploadTimer)
+	for i := 0; i < pinNumber; i++ {
+		pin := metrics.NewTimer()
+		metrics.Register("pin"+string(rune(i)), pin)
+		TimerPin = append(TimerPin, pin)
+	}
 
 	AddTimer = metrics.NewTimer()
 	metrics.Register("Add", AddTimer)
@@ -71,11 +80,8 @@ func TimersInit() {
 	FlatfsPut = metrics.NewTimer()
 	metrics.Register("flatfsPut", FlatfsPut)
 
-	GetTimer = metrics.NewTimer()
-	metrics.Register("Get", GetTimer)
+	BDMonitor = Newmonitor()
 
-	DownloadTimer = metrics.NewTimer()
-	metrics.Register("Download", DownloadTimer)
 	//go metrics.Log(metrics.DefaultRegistry, 1 * time.Second,log.New(os.Stdout, "metrics: ", log.Lmicroseconds))
 
 }
@@ -83,29 +89,49 @@ func TimersInit() {
 const MS = 1000000
 
 func OutputMetrics0() {
-
-	//fmt.Printf(standardOutput("Upload", UploadTimer))
-	//addtotal := float64(AddTimer.Sum())
-	fmt.Printf("Upload: %d ,     avg- %f ms, 0.9p- %f ms \n", UploadTimer.Count(), UploadTimer.Mean()/MS, UploadTimer.Percentile(float64(UploadTimer.Count())*0.9)/MS)
+	for i := 0; i < pinNumber; i++ {
+		fmt.Printf("TimerPin-%d: %d ,     avg- %f ms, 0.9p- %f ms \n", i, TimerPin[i].Count(), TimerPin[i].Mean()/MS, TimerPin[i].Percentile(float64(TimerPin[i].Count())*0.9)/MS)
+	}
+	fmt.Println("-----------Add-----------------------------")
 	fmt.Printf("Add: %d ,     avg- %f ms, 0.9p- %f ms \n", AddTimer.Count(), AddTimer.Mean()/MS, AddTimer.Percentile(float64(AddTimer.Count())*0.9)/MS)
 	fmt.Printf("Provide: %d ,     avg- %f ms, 0.9p- %f ms \n", Provide.Count(), Provide.Mean()/MS, Provide.Percentile(float64(Provide.Count())*0.9)/MS)
 	fmt.Printf("Persist: %d ,     avg- %f ms, 0.9p- %f ms \n", Persist.Count(), Persist.Mean()/MS, Persist.Percentile(float64(Persist.Count())*0.9)/MS)
 	fmt.Printf("Dag: %d ,     avg- %f ms, 0.9p- %f ms \n", Dag.Count(), Dag.Mean()/MS, Dag.Percentile(float64(Dag.Count())*0.9)/MS)
 	fmt.Printf("HasTimer: %d ,     avg- %f ms, 0.9p- %f ms \n", FlatfsHasTimer.Count(), FlatfsHasTimer.Mean()/MS, FlatfsHasTimer.Percentile(float64(FlatfsHasTimer.Count())*0.9)/MS)
 	fmt.Printf("FlatfsPut: %d ,     avg- %f ms, 0.9p- %f ms \n", FlatfsPut.Count(), FlatfsPut.Mean()/MS, FlatfsPut.Percentile(float64(FlatfsPut.Count())*0.9)/MS)
-
-	fmt.Printf("Download: %d ,     avg- %f ms, 0.9p- %f ms \n", DownloadTimer.Count(), DownloadTimer.Mean()/MS, DownloadTimer.Percentile(float64(DownloadTimer.Count())*0.9)/MS)
-	fmt.Printf("Get: %d ,     avg- %f ms, 0.9p- %f ms \n", GetTimer.Count(), GetTimer.Mean()/MS, GetTimer.Percentile(float64(GetTimer.Count())*0.9)/MS)
-
+	fmt.Println("------------Get----------------------------")
+	
 }
 
 func Output_addBreakdown() {
 	fmt.Printf("avg(ms)    0.9p(ms)\n")
-	fmt.Printf("%f %f\n", UploadTimer.Mean()/MS, UploadTimer.Percentile(float64(UploadTimer.Count())*0.9)/MS)
 	fmt.Printf("%f %f\n", Provide.Mean()/MS, Provide.Percentile(float64(Provide.Count())*0.9)/MS)
 	fmt.Printf("%f %f\n", Persist.Mean()/MS, Persist.Percentile(float64(Persist.Count())*0.9)/MS)
 	fmt.Printf("%f %f\n", Dag.Mean()/MS, Dag.Percentile(float64(Dag.Count())*0.9)/MS)
 }
+
+func Output_Get_SingleFile() {
+	fmt.Printf("root: %.2f %.2f %.2f %.2f %.2f %.2f %.2f\n",
+		BDMonitor.RootBlockServiceTime().Seconds()*1000,
+		BDMonitor.RootNeighbourAskingTime().Seconds()*1000,
+		BDMonitor.RootFindProviderTime().Seconds()*1000,
+		BDMonitor.RootWaitToWantTime().Seconds()*1000,
+		BDMonitor.RootBitswapTime().Seconds()*1000,
+		BDMonitor.RootBeforeVisitTime().Seconds()*1000,
+		BDMonitor.RootVisitTime().Seconds()*1000)
+	fmt.Printf("leaf node average(%d): %.2f %.2f %.2f %.2f %.2f\n", BDMonitor.LeafNumber(),
+		BDMonitor.AvgLeafBlockServiceTime().Seconds()*1000,
+		BDMonitor.AvgLeafWaitToWantTime().Seconds()*1000,
+		BDMonitor.AvgLeafBitswapTime().Seconds()*1000,
+		BDMonitor.AvgLeafBeforeVisitTime().Seconds()*1000,
+		BDMonitor.AvgLeafVisitTime().Seconds()*1000)
+	realtime := BDMonitor.RealTime().Seconds()
+	modeltime := BDMonitor.ModeledTime().Seconds()
+	v := (realtime - modeltime) / realtime
+	fmt.Printf("real time: %.2f. modeled time: %.2f. variance: %.2f\n", realtime*1000, modeltime*1000, v)
+}
+
+//--------------------------------TO-REMOVE----------------------------------------------------------------------
 
 var AddTimeUse float64
 var LastAverage float64
