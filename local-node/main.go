@@ -15,6 +15,7 @@ import (
 	"github.com/ipfs/go-ipfs/repo/fsrepo"
 	logging "github.com/ipfs/go-log"
 	icore "github.com/ipfs/interface-go-ipfs-core"
+	"github.com/ipfs/interface-go-ipfs-core/options"
 	icorepath "github.com/ipfs/interface-go-ipfs-core/path"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -23,8 +24,10 @@ import (
 	"metrics"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"crypto/rand"
@@ -54,7 +57,14 @@ func createTempRepo(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get temp dir: %s", err)
 	}*/
-	repoPath := "~/.ipfs"
+
+	u, err := user.Current()
+	if err != nil {
+		fmt.Println("failed to get home dir. ")
+	}
+	repoPath := u.HomeDir + "/.ipfs"
+
+	//repoPath := "~/.ipfs"  // '~'
 	// Create a config with default options and a 2048 bit key
 	cfg, err := config.Init(ioutil.Discard, 2048)
 	if err != nil {
@@ -63,7 +73,8 @@ func createTempRepo(ctx context.Context) (string, error) {
 
 	// Create the repo with the config
 	//err = fsrepo.Init(repoPath, cfg)
-	err = fsrepo.Init("~/.ipfs", cfg)
+	//err = fsrepo.Init("~/.ipfs", cfg)
+	err = fsrepo.Init(repoPath, cfg)
 	if err != nil {
 		return "", fmt.Errorf("failed to init ephemeral node: %s", err)
 	}
@@ -114,6 +125,7 @@ func spawnEphemeral(ctx context.Context) (icore.CoreAPI, error) {
 	// Spawning an ephemeral IPFS node
 	return createNode(ctx, repoPath)
 }
+
 func Ini() (context.Context, icore.CoreAPI, context.CancelFunc) {
 	fmt.Println("-- Getting an IPFS node running -- ")
 
@@ -153,7 +165,9 @@ func getUnixfsNode(path string) (files.Node, error) {
 
 	return f, nil
 }
-func UploadFile(file string, ctx context.Context, ipfs icore.CoreAPI) (icorepath.Resolved, error) {
+
+// NOTE: I modified function here adding a chunker para.
+func UploadFile(file string, ctx context.Context, ipfs icore.CoreAPI, chunker string) (icorepath.Resolved, error) {
 	defer func() {
 
 		metrics.AddTimer.Update(metrics.AddDura)
@@ -177,15 +191,23 @@ func UploadFile(file string, ctx context.Context, ipfs icore.CoreAPI) (icorepath
 	if err != nil {
 		return nil, err
 	}
-	//start:=time.Now()
-	cid, err := ipfs.Unixfs().Add(ctx, somefile)
-	metrics.AddDura += time.Now().Sub(start)
 
+	opts := []options.UnixfsAddOption{
+		options.Unixfs.Chunker(chunker),
+	}
+	cid, err := ipfs.Unixfs().Add(ctx, somefile, opts...)
+
+	if err != nil {
+		fmt.Println("failed to upload file in function : UploadFile")
+		return nil, err
+	}
+	metrics.AddDura += time.Now().Sub(start)
 	//quieoo.AddTimer.UpdateSince(start)
 	return cid, err
 }
 
-func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, cids string, redun int) {
+// NOTE: I modified the function for adding a para named chunker.
+func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, cids string, redun int, chunker string) {
 	cidFile, _ := os.Create(cids)
 	fmt.Printf("Uploading files with size %d B\n", size)
 	coreNumber := cores
@@ -216,7 +238,8 @@ func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, ci
 					return
 				}
 				start := time.Now()
-				cid, err := UploadFile(tempfile, ctx, ipfs)
+				// NOTE: I added a chunker parameter.
+				cid, err := UploadFile(tempfile, ctx, ipfs, chunker)
 				if err != nil {
 					fmt.Println(err.Error())
 					stallchan <- i
@@ -248,7 +271,7 @@ func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, ci
 		for _, f := range tempfiles {
 			tempFile := tempDir + "/" + f.Name()
 			start := time.Now()
-			cid, err := UploadFile(tempFile, ctx, ipfs)
+			cid, err := UploadFile(tempFile, ctx, ipfs, chunker)
 			if metrics.CMD_ProvideFirst && firstupload {
 				firstupload = false
 				err := ipfs.Dht().Provide(ctx, cid)
@@ -288,7 +311,7 @@ func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, ci
 		}
 
 		//finish
-		//stallchan <- i
+		stallchan <- i
 	}
 	for i := 0; i < coreNumber; i++ {
 		go sendFunc(i)
@@ -308,7 +331,7 @@ func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, ci
 	}
 }
 
-func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bool, np string) {
+func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bool, np string, concurrentGet int) {
 	//logging.SetLogLevel("dht","debug")
 	neighbours, err := LocalNeighbour(np)
 	if err != nil || len(neighbours) == 0 {
@@ -339,52 +362,69 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 		}
 	}()
 
-	//download
-	br := bufio.NewReader(file)
+	// NOTE: I added some lines to split files' cid into several slices.
+	//  We can get all files' cids in the 2D slices **fileCid**
+	inputReader := bufio.NewReader(file)
+
+	fileCid := make([][]string, concurrentGet)
+	for i := range fileCid {
+		fileCid[i] = make([]string, 0)
+	}
+
+	tmpCnt := 0
 	for {
-		torequest, _, err := br.ReadLine()
-		if err != nil {
-			// EOF -> finish downloading all files
-			fmt.Println(err.Error())
-			return
+		aLine, readErr := inputReader.ReadString('\n')
+		aLine = strings.TrimSuffix(aLine, "\n")
+		if readErr == io.EOF {
+			break
 		}
+		fileCid[tmpCnt%concurrentGet] = append(fileCid[tmpCnt%concurrentGet], aLine)
+		tmpCnt++
+	}
+	var wg sync.WaitGroup
+	wg.Add(concurrentGet)
+	for i := 0; i < concurrentGet; i++ {
+		go func(theOrder int) {
+			defer wg.Done()
 
-		cid := string(torequest)
-		p := icorepath.New(cid)
-		start := time.Now()
-		metrics.BDMonitor.GetStartTime = start
-		rootNode, err := ipfs.Unixfs().Get(ctx, p)
-		if err != nil {
-			panic(fmt.Errorf("Could not get file with CID: %s", err))
-		}
-		err = files.WriteTo(rootNode, tempDir+"/"+cid)
-		if err != nil {
-			panic(fmt.Errorf("Could not write out the fetched CID: %s", err))
-		}
-
-		metrics.BDMonitor.GetFinishTime = time.Now()
-		metrics.Output_Get_SingleFile()
-		metrics.BDMonitor = metrics.Newmonitor()
-
-		fmt.Printf("get file %s %f\n", cid, time.Now().Sub(start).Seconds()*1000)
-		//provide after get
-		if pag {
-			err := ipfs.Dht().Provide(ctx, p)
-			if err != nil {
-				fmt.Printf("failed to provide file after get: %v\n", err.Error())
-				return
-			}
-		}
-
-		//remove neighbours
-		if len(neighbours) != 0 {
-			for _, n := range neighbours {
-				err := DisconnectToPeers(ctx, ipfs, n)
+			for j := 0; j < len(fileCid[theOrder]); j++ {
+				cid := fileCid[theOrder][j]
+				p := icorepath.New(cid)
+				start := time.Now()
+				metrics.BDMonitor.GetStartTime = start
+				rootNode, err := ipfs.Unixfs().Get(ctx, p)
 				if err != nil {
-					fmt.Printf("failed to disconnect: %v\n", err)
+					panic(fmt.Errorf("Could not get file with CID: %s", err))
+				}
+				err = files.WriteTo(rootNode, tempDir+"/"+cid)
+				if err != nil {
+					panic(fmt.Errorf("Could not write out the fetched CID: %s", err))
+				}
+
+				metrics.BDMonitor.GetFinishTime = time.Now()
+				metrics.Output_Get_SingleFile()
+				metrics.BDMonitor = metrics.Newmonitor()
+				fmt.Printf("Thread %d get file %s %f\n", theOrder, cid, time.Now().Sub(start).Seconds()*1000)
+				//provide after get
+				if pag {
+					err := ipfs.Dht().Provide(ctx, p)
+					if err != nil {
+						fmt.Printf("failed to provide file after get: %v\n", err.Error())
+						return
+					}
+				}
+
+				//remove neighbours
+				if len(neighbours) != 0 {
+					for _, n := range neighbours {
+						err := DisconnectToPeers(ctx, ipfs, n)
+						if err != nil {
+							fmt.Printf("failed to disconnect: %v\n", err)
+						}
+					}
 				}
 			}
-		}
+		}(i)
 	}
 }
 
@@ -407,6 +447,8 @@ func main() {
 	var ipfsPath string
 	var redun_rate int
 	var logLevel string
+	var chunker string    // NOTE: added a chunker option
+	var concurrentGet int // NOTE: added a option for the number of threads to concurrent get files.
 
 	flag.IntVar(&redun_rate, "redun", 0, "The redundancy of the file when Benchmarking upload, 100 indicates that there is exactly the same file in the node, 0 means there is no existence of same file.(default 0)")
 	flag.StringVar(&cmd, "c", "", "operation type\n"+
@@ -426,7 +468,17 @@ func main() {
 	flag.StringVar(&ipfsPath, "ipfs", "./go-ipfs/cmd/ipfs/ipfs", "where go-ipfs exec exists")
 	flag.StringVar(&logLevel, "logl", "error", "log level, output subsystem 'bitswap' and 'dht'. levels: debug-info-warn-error-")
 
+	// NOTE: Added two option.
+	flag.IntVar(&concurrentGet, "cg", 1, "concurrent get number")
+	flag.StringVar(&chunker, "chunker", "size-262144", "customized chunker")
+
 	flag.Parse()
+
+	// NOTE: check the concurrentGet.
+	if concurrentGet <= 0 {
+		fmt.Printf("Bad parameter for the concurrerntGet. It should be an integer belong to [1, )")
+		return
+	}
 
 	if metrics.CMD_EnableMetrics {
 		metrics.TimersInit()
@@ -454,14 +506,14 @@ func main() {
 		ctx, ipfs, cancel := Ini()
 
 		defer cancel()
-		Upload(filesize, filenumber, parallel, ctx, ipfs, cidfile, redun_rate)
+		// NOTE: I modified the function for adding a ** chunker ** .
+		Upload(filesize, filenumber, parallel, ctx, ipfs, cidfile, redun_rate, chunker)
 		return
 	}
 	if cmd == "downloads" {
 		ctx, ipfs, cancel := Ini()
 		defer cancel()
-
-		DownloadSerial(ctx, ipfs, cidfile, provideAfterGet, neighboursPath)
+		DownloadSerial(ctx, ipfs, cidfile, provideAfterGet, neighboursPath, concurrentGet)
 		return
 	}
 	if cmd == "daemon" {

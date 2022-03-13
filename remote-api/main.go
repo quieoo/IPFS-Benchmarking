@@ -45,6 +45,7 @@ func NewLenChars(length int, chars []byte) string {
 		}
 	}
 }
+
 func getUnixfsNode(path string) (files.Node, error) {
 	st, err := os.Stat(path)
 	if err != nil {
@@ -58,12 +59,13 @@ func getUnixfsNode(path string) (files.Node, error) {
 
 	return f, nil
 }
+
 func main() {
 	var filesize int
 	var filenumber int
 	var http string
 	flag.IntVar(&filesize, "s", 256*1024, "file size")
-	flag.IntVar(&filenumber, "n", 0, "file nmber")
+	flag.IntVar(&filenumber, "n", 0, "file number")
 	flag.StringVar(&http, "p", "127.0.0.1", "ipv4 address of connect ipfs node (node should keep port 5001 open for rest api call)")
 	flag.Parse()
 

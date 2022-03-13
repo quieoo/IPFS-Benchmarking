@@ -9,5 +9,10 @@
 /httpfs/server
 /httpfs/files/
 /httpfs/downloaded/
+clean.sh
+copy.sh
+/remote-api/httpclient
+/exp3/main.go
+/exp3/ip
 ~/
 /local-node/log
