@@ -201,7 +201,7 @@ func (m *Monitor) RootBlockServiceTime() time.Duration {
 	return time.Duration(0)
 }
 func (m *Monitor) AvgLeafBlockServiceTime() time.Duration {
-	var sum time.Duration
+	sum := time.Duration(0)
 	var num int64
 	m.EventList.Range(func(key, value interface{}) bool {
 		be := value.(BlockEvent)
@@ -211,6 +211,12 @@ func (m *Monitor) AvgLeafBlockServiceTime() time.Duration {
 		}
 		return true
 	})
+	if num == 0 {
+		return sum
+	}
+	if num == 0 {
+		return sum
+	}
 	return time.Duration(sum.Nanoseconds() / num)
 }
 func (m *Monitor) RootNeighbourAskingTime() time.Duration {
@@ -284,7 +290,7 @@ func (m *Monitor) RootWaitToWantTime() time.Duration {
 	return time.Duration(0)
 }
 func (m *Monitor) AvgLeafWaitToWantTime() time.Duration {
-	var sum time.Duration
+	sum := time.Duration(0)
 	var num int64
 	m.EventList.Range(func(key, value interface{}) bool {
 		be := value.(BlockEvent)
@@ -299,6 +305,9 @@ func (m *Monitor) AvgLeafWaitToWantTime() time.Duration {
 
 		return true
 	})
+	if num == 0 {
+		return sum
+	}
 	return time.Duration(sum.Nanoseconds() / num)
 }
 
@@ -316,7 +325,7 @@ func (m *Monitor) RootBitswapTime() time.Duration {
 	return time.Duration(0)
 }
 func (m *Monitor) AvgLeafBitswapTime() time.Duration {
-	var sum time.Duration
+	sum := time.Duration(0)
 	var num int64
 	m.EventList.Range(func(key, value interface{}) bool {
 		be := value.(BlockEvent)
@@ -330,6 +339,9 @@ func (m *Monitor) AvgLeafBitswapTime() time.Duration {
 		}
 		return true
 	})
+	if num == 0 {
+		return sum
+	}
 	return time.Duration(sum.Nanoseconds() / num)
 }
 
@@ -342,7 +354,7 @@ func (m *Monitor) RootBeforeVisitTime() time.Duration {
 	return time.Duration(0)
 }
 func (m *Monitor) AvgLeafBeforeVisitTime() time.Duration {
-	var sum time.Duration
+	sum := time.Duration(0)
 	var num int64
 	m.EventList.Range(func(key, value interface{}) bool {
 		be := value.(BlockEvent)
@@ -352,6 +364,9 @@ func (m *Monitor) AvgLeafBeforeVisitTime() time.Duration {
 		}
 		return true
 	})
+	if num == 0 {
+		return sum
+	}
 	return time.Duration(sum.Nanoseconds() / num)
 }
 
@@ -364,7 +379,7 @@ func (m *Monitor) RootVisitTime() time.Duration {
 	return time.Duration(0)
 }
 func (m *Monitor) AvgLeafVisitTime() time.Duration {
-	var sum time.Duration
+	sum := time.Duration(0)
 	var num int64
 	m.EventList.Range(func(key, value interface{}) bool {
 		be := value.(BlockEvent)
@@ -374,6 +389,9 @@ func (m *Monitor) AvgLeafVisitTime() time.Duration {
 		}
 		return true
 	})
+	if num == 0 {
+		return sum
+	}
 	return time.Duration(sum.Nanoseconds() / num)
 }
 

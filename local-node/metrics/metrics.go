@@ -40,8 +40,26 @@ var FlatfsPutDura time.Duration
 // Get Metrics
 
 var BDMonitor *Monitor
+var RootBlockService metrics.Timer
+var AvgLeafBlockService metrics.Timer
+var RootNeighbourAsking metrics.Timer
+var RootFindProvider metrics.Timer
+var RootWaitToWant metrics.Timer
+var AvgLeafWaitToWant metrics.Timer
+var RootBitswap metrics.Timer
+var AvgLeafBitswap metrics.Timer
+var RootBeforeVisit metrics.Timer
+var AvgLeafBeforeVisit metrics.Timer
+var RootVisit metrics.Timer
+var AvgLeafVisit metrics.Timer
+
+var RealGet metrics.Timer
+var ModelGet metrics.Timer
+var Sample metrics.Sample
+var Variance metrics.Histogram
 
 func call(skip int) {
+
 	pc, file, line, _ := runtime.Caller(skip)
 	pcName := runtime.FuncForPC(pc).Name()
 	fmt.Println(fmt.Sprintf("%s   %d   %s", file, line, pcName))
@@ -81,6 +99,39 @@ func TimersInit() {
 	metrics.Register("flatfsPut", FlatfsPut)
 
 	BDMonitor = Newmonitor()
+	RootBlockService = metrics.NewTimer()
+	metrics.Register("RootBlockService", RootBlockService)
+	AvgLeafBlockService = metrics.NewTimer()
+	metrics.Register("AvgLeafBlockService", AvgLeafBlockService)
+	RootNeighbourAsking = metrics.NewTimer()
+	metrics.Register("RootNeighbourAsking", RootNeighbourAsking)
+	RootFindProvider = metrics.NewTimer()
+	metrics.Register("RootFindProvider", RootFindProvider)
+	RootWaitToWant = metrics.NewTimer()
+	metrics.Register("RootWaitToWant", RootWaitToWant)
+	AvgLeafWaitToWant = metrics.NewTimer()
+	metrics.Register("AvgLeafWaitToWant", AvgLeafWaitToWant)
+	RootBitswap = metrics.NewTimer()
+	metrics.Register("RootBitswap", RootBitswap)
+	AvgLeafBitswap = metrics.NewTimer()
+	metrics.Register("AvgLeafBitswap", AvgLeafBitswap)
+	RootBeforeVisit = metrics.NewTimer()
+	metrics.Register("RootBeforeVisit", RootBeforeVisit)
+	AvgLeafBeforeVisit = metrics.NewTimer()
+	metrics.Register("AvgLeafBeforeVisit", AvgLeafBeforeVisit)
+	RootVisit = metrics.NewTimer()
+	metrics.Register("RootVisit", RootVisit)
+	AvgLeafVisit = metrics.NewTimer()
+	metrics.Register("AvgLeafVisit", AvgLeafVisit)
+
+	RealGet = metrics.NewTimer()
+	metrics.Register("RealGet", RealGet)
+	ModelGet = metrics.NewTimer()
+	metrics.Register("ModelGet", ModelGet)
+
+	Sample = metrics.NewUniformSample(102400)
+	Variance = metrics.NewHistogram(Sample)
+	metrics.Register("Variance", Variance)
 
 	//go metrics.Log(metrics.DefaultRegistry, 1 * time.Second,log.New(os.Stdout, "metrics: ", log.Lmicroseconds))
 
@@ -100,7 +151,7 @@ func OutputMetrics0() {
 	fmt.Printf("HasTimer: %d ,     avg- %f ms, 0.9p- %f ms \n", FlatfsHasTimer.Count(), FlatfsHasTimer.Mean()/MS, FlatfsHasTimer.Percentile(float64(FlatfsHasTimer.Count())*0.9)/MS)
 	fmt.Printf("FlatfsPut: %d ,     avg- %f ms, 0.9p- %f ms \n", FlatfsPut.Count(), FlatfsPut.Mean()/MS, FlatfsPut.Percentile(float64(FlatfsPut.Count())*0.9)/MS)
 	fmt.Println("------------Get----------------------------")
-	
+
 }
 
 func Output_addBreakdown() {
@@ -129,6 +180,48 @@ func Output_Get_SingleFile() {
 	modeltime := BDMonitor.ModeledTime().Seconds()
 	v := (realtime - modeltime) / realtime
 	fmt.Printf("real time: %.2f. modeled time: %.2f. variance: %.2f\n", realtime*1000, modeltime*1000, v)
+}
+func CollectMonitor() {
+	RootBlockService.Update(BDMonitor.RootBlockServiceTime())
+	RootNeighbourAsking.Update(BDMonitor.RootNeighbourAskingTime())
+	RootFindProvider.Update(BDMonitor.RootFindProviderTime())
+	RootWaitToWant.Update(BDMonitor.RootWaitToWantTime())
+	RootBitswap.Update(BDMonitor.RootBitswapTime())
+	RootBeforeVisit.Update(BDMonitor.RootBeforeVisitTime())
+	RootVisit.Update(BDMonitor.RootVisitTime())
+	AvgLeafBlockService.Update(BDMonitor.AvgLeafBlockServiceTime())
+	AvgLeafWaitToWant.Update(BDMonitor.AvgLeafWaitToWantTime())
+	AvgLeafBitswap.Update(BDMonitor.AvgLeafBitswapTime())
+	AvgLeafBeforeVisit.Update(BDMonitor.AvgLeafBeforeVisitTime())
+
+	realtime := BDMonitor.RealTime()
+	modeltime := BDMonitor.ModeledTime()
+	v := int64(((realtime.Seconds() - modeltime.Seconds()) / realtime.Seconds()) * 10000) //Histogram requires int data
+	RealGet.Update(realtime)
+	ModelGet.Update(modeltime)
+	Variance.Update(v)
+
+	BDMonitor = Newmonitor()
+}
+
+func Output_Get() {
+	fmt.Printf(" RootBlockService: %d ,     avg- %f ms, 0.9p- %f ms \n", RootBlockService.Count(), RootBlockService.Mean()/MS, RootBlockService.Percentile(float64(RootBlockService.Count())*0.9)/MS)
+	fmt.Printf(" RootNeighbourAsking: %d ,     avg- %f ms, 0.9p- %f ms \n", RootNeighbourAsking.Count(), RootNeighbourAsking.Mean()/MS, RootNeighbourAsking.Percentile(float64(RootNeighbourAsking.Count())*0.9)/MS)
+	fmt.Printf(" RootFindProvider: %d ,     avg- %f ms, 0.9p- %f ms \n", RootFindProvider.Count(), RootFindProvider.Mean()/MS, RootFindProvider.Percentile(float64(RootFindProvider.Count())*0.9)/MS)
+	fmt.Printf(" RootWaitToWant: %d ,     avg- %f ms, 0.9p- %f ms \n", RootWaitToWant.Count(), RootWaitToWant.Mean()/MS, RootWaitToWant.Percentile(float64(RootWaitToWant.Count())*0.9)/MS)
+	fmt.Printf(" RootBitswap: %d ,     avg- %f ms, 0.9p- %f ms \n", RootBitswap.Count(), RootBitswap.Mean()/MS, RootBitswap.Percentile(float64(RootBitswap.Count())*0.9)/MS)
+	fmt.Printf(" RootBeforeVisit: %d ,     avg- %f ms, 0.9p- %f ms \n", RootBeforeVisit.Count(), RootBeforeVisit.Mean()/MS, RootBeforeVisit.Percentile(float64(RootBeforeVisit.Count())*0.9)/MS)
+	fmt.Printf(" RootVisit: %d ,     avg- %f ms, 0.9p- %f ms \n", RootVisit.Count(), RootVisit.Mean()/MS, RootVisit.Percentile(float64(RootVisit.Count())*0.9)/MS)
+
+	fmt.Printf(" AvgLeafBlockService: %d ,     avg- %f ms, 0.9p- %f ms \n", AvgLeafBlockService.Count(), AvgLeafBlockService.Mean()/MS, AvgLeafBlockService.Percentile(float64(AvgLeafBlockService.Count())*0.9)/MS)
+	fmt.Printf(" AvgLeafWaitToWant: %d ,     avg- %f ms, 0.9p- %f ms \n", AvgLeafWaitToWant.Count(), AvgLeafWaitToWant.Mean()/MS, AvgLeafWaitToWant.Percentile(float64(AvgLeafWaitToWant.Count())*0.9)/MS)
+	fmt.Printf(" AvgLeafBitswap: %d ,     avg- %f ms, 0.9p- %f ms \n", AvgLeafBitswap.Count(), AvgLeafBitswap.Mean()/MS, AvgLeafBitswap.Percentile(float64(AvgLeafBitswap.Count())*0.9)/MS)
+	fmt.Printf(" AvgLeafBeforeVisit: %d ,     avg- %f ms, 0.9p- %f ms \n", AvgLeafBeforeVisit.Count(), AvgLeafBeforeVisit.Mean()/MS, AvgLeafBeforeVisit.Percentile(float64(AvgLeafBeforeVisit.Count())*0.9)/MS)
+	fmt.Printf(" AvgLeafVisit: %d ,     avg- %f ms, 0.9p- %f ms \n", AvgLeafVisit.Count(), AvgLeafVisit.Mean()/MS, AvgLeafVisit.Percentile(float64(AvgLeafVisit.Count())*0.9)/MS)
+
+	fmt.Printf(" RealGet: %d ,     avg- %f ms, 0.9p- %f ms \n", RealGet.Count(), RealGet.Mean()/MS, RealGet.Percentile(float64(RealGet.Count())*0.9)/MS)
+	fmt.Printf(" ModelGet: %d ,     avg- %f ms, 0.9p- %f ms \n", ModelGet.Count(), ModelGet.Mean()/MS, ModelGet.Percentile(float64(ModelGet.Count())*0.9)/MS)
+	fmt.Printf(" Variance(/10000): %d ,     avg- %f, 0.9p- %f \n", Variance.Count(), Variance.Mean()/MS, Variance.Percentile(float64(Variance.Count())*0.9)/MS)
 }
 
 //--------------------------------TO-REMOVE----------------------------------------------------------------------

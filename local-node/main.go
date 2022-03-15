@@ -394,16 +394,17 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 				metrics.BDMonitor.GetStartTime = start
 				rootNode, err := ipfs.Unixfs().Get(ctx, p)
 				if err != nil {
-					panic(fmt.Errorf("Could not get file with CID: %s", err))
+					panic(fmt.Errorf("could not get file with CID: %s", err))
 				}
 				err = files.WriteTo(rootNode, tempDir+"/"+cid)
 				if err != nil {
-					panic(fmt.Errorf("Could not write out the fetched CID: %s", err))
+					panic(fmt.Errorf("could not write out the fetched CID: %s", err))
 				}
 
 				metrics.BDMonitor.GetFinishTime = time.Now()
-				metrics.Output_Get_SingleFile()
-				metrics.BDMonitor = metrics.Newmonitor()
+				//metrics.Output_Get_SingleFile()
+				//metrics.BDMonitor = metrics.Newmonitor()
+				metrics.CollectMonitor()
 				fmt.Printf("Thread %d get file %s %f\n", theOrder, cid, time.Now().Sub(start).Seconds()*1000)
 				//provide after get
 				if pag {
@@ -426,6 +427,8 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 			}
 		}(i)
 	}
+	wg.Wait()
+	metrics.Output_Get()
 }
 
 func main() {
