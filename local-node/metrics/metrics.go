@@ -58,6 +58,9 @@ var ModelGet metrics.Timer
 var Sample metrics.Sample
 var Variance metrics.Histogram
 
+//findProvider metrics
+var FPMonitor *FindProviderMonitor
+
 func call(skip int) {
 
 	pc, file, line, _ := runtime.Caller(skip)
@@ -133,6 +136,7 @@ func TimersInit() {
 	Variance = metrics.NewHistogram(Sample)
 	metrics.Register("Variance", Variance)
 
+	FPMonitor = NewFPMonitor()
 	//go metrics.Log(metrics.DefaultRegistry, 1 * time.Second,log.New(os.Stdout, "metrics: ", log.Lmicroseconds))
 
 }

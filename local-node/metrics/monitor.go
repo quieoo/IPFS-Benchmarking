@@ -37,6 +37,20 @@ type Monitor struct {
 	GetFinishTime time.Time
 }
 
+type BlockEvent struct {
+	Level             int
+	lock              *sync.RWMutex
+	BlockServiceGet   time.Time
+	GetBlocksRequest  time.Time
+	FirstWantTo       sync.Map
+	FirstFindProvider time.Time
+	FirstGotProvider  sync.Map
+	FirstReceive      time.Time
+	ReceiveFrom       string
+	BeginVisit        time.Time
+	FinishVisit       time.Time
+}
+
 func Newmonitor() *Monitor {
 	var monitor Monitor
 	return &monitor
@@ -44,8 +58,8 @@ func Newmonitor() *Monitor {
 
 var ZeroTime = time.Unix(0, 0)
 
-func (m *Monitor) NewBlockEnevt(c cid.Cid, l int) {
-	//fmt.Printf("NewBlockEnevt %s %s\n", c, time.Now())
+func (m *Monitor) NewBlockEvent(c cid.Cid, l int) {
+	//fmt.Printf("NewBlockEvent %s %s\n", c, time.Now())
 	if l == 0 {
 		m.Root = c
 	}
@@ -61,7 +75,7 @@ func (m *Monitor) NewBlockEnevt(c cid.Cid, l int) {
 	m.EventList.Store(c, be)
 }
 func (m *Monitor) NewBlockEnevts(ks []cid.Cid, l int) {
-	//fmt.Printf("NewBlockEnevt %s %s\n", c, time.Now())
+	//fmt.Printf("NewBlockEvent %s %s\n", c, time.Now())
 	for _, c := range ks {
 		var be BlockEvent
 		be.Level = l
@@ -492,20 +506,6 @@ func (m *Monitor) TimeStamps() {
 
 		return true
 	})
-}
-
-type BlockEvent struct {
-	Level             int
-	lock              *sync.RWMutex
-	BlockServiceGet   time.Time
-	GetBlocksRequest  time.Time
-	FirstWantTo       sync.Map
-	FirstFindProvider time.Time
-	FirstGotProvider  sync.Map
-	FirstReceive      time.Time
-	ReceiveFrom       string
-	BeginVisit        time.Time
-	FinishVisit       time.Time
 }
 
 func (be *BlockEvent) SetLevel(l int) {

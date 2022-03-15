@@ -405,6 +405,8 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 				//metrics.Output_Get_SingleFile()
 				//metrics.BDMonitor = metrics.Newmonitor()
 				metrics.CollectMonitor()
+				metrics.FPMonitor.CriticalPath()
+				metrics.FPMonitor = metrics.NewFPMonitor()
 				fmt.Printf("Thread %d get file %s %f\n", theOrder, cid, time.Now().Sub(start).Seconds()*1000)
 				//provide after get
 				if pag {
@@ -428,7 +430,6 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 		}(i)
 	}
 	wg.Wait()
-	metrics.Output_Get()
 }
 
 func main() {
@@ -449,7 +450,7 @@ func main() {
 	var neighboursPath string
 	var ipfsPath string
 	var redun_rate int
-	var logLevel string
+	var seelogs string
 	var chunker string    // NOTE: added a chunker option
 	var concurrentGet int // NOTE: added a option for the number of threads to concurrent get files.
 
@@ -469,7 +470,7 @@ func main() {
 	flag.StringVar(&neighboursPath, "np", "neighbours", "the path of file that records neighbours id, neighbours will be removed after geting file")
 
 	flag.StringVar(&ipfsPath, "ipfs", "./go-ipfs/cmd/ipfs/ipfs", "where go-ipfs exec exists")
-	flag.StringVar(&logLevel, "logl", "error", "log level, output subsystem 'bitswap' and 'dht'. levels: debug-info-warn-error-")
+	flag.StringVar(&seelogs, "seelogs", "", "configure the specified log level to 'debug', logs connect with'-', such as 'dht-bitswap-blockservice'")
 
 	// NOTE: Added two option.
 	// TODO: current monitor of Get-Breakdown are global, and not sufficiently tested in multi-threaded environment, may exists problems
@@ -488,22 +489,17 @@ func main() {
 		metrics.TimersInit()
 		defer func() {
 			//metrics.Output_addBreakdown()
+			metrics.Output_Get()
 		}()
 	}
-	err := logging.SetLogLevel("bitswap", logLevel)
-	if err != nil {
-		fmt.Println(err.Error())
-		return
-	}
-	err = logging.SetLogLevel("dht", logLevel)
-	if err != nil {
-		fmt.Println(err.Error())
-		return
-	}
-	err = logging.SetLogLevel("blockservice", logLevel)
-	if err != nil {
-		fmt.Println(err.Error())
-		return
+	if len(seelogs) > 0 {
+		sublogs := strings.Split(seelogs, "-")
+		for _, s := range sublogs {
+			err := logging.SetLogLevel(s, "debug")
+			if err != nil {
+				fmt.Println("failed to set log level of: " + s + " ." + err.Error())
+			}
+		}
 	}
 
 	if cmd == "upload" {
