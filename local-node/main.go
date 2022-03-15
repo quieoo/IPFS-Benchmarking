@@ -472,6 +472,7 @@ func main() {
 	flag.StringVar(&logLevel, "logl", "error", "log level, output subsystem 'bitswap' and 'dht'. levels: debug-info-warn-error-")
 
 	// NOTE: Added two option.
+	// TODO: current monitor of Get-Breakdown are global, and not sufficiently tested in multi-threaded environment, may exists problems
 	flag.IntVar(&concurrentGet, "cg", 1, "concurrent get number")
 	flag.StringVar(&chunker, "chunker", "size-262144", "customized chunker")
 
