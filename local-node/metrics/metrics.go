@@ -15,6 +15,7 @@ var CMD_CloseDHTRefresh = false
 var CMD_CloseAddProvide = false
 var CMD_ProvideFirst = true
 var CMD_EnableMetrics = true
+var CMD_StallAfterUpload = false
 
 var TimerPin []metrics.Timer
 var pinNumber = 2
@@ -60,6 +61,15 @@ var Variance metrics.Histogram
 
 //findProvider metrics
 var FPMonitor *FindProviderMonitor
+var DHTChoose metrics.Timer
+var DHRResponse metrics.Timer
+var DHTReplace metrics.Timer
+var RealFindProvider metrics.Timer
+var ModelFindProvider metrics.Timer
+var Samplefp metrics.Sample
+var FPVariance metrics.Histogram
+var Samplefpn metrics.Sample
+var FPInner metrics.Histogram
 
 func call(skip int) {
 
@@ -136,6 +146,26 @@ func TimersInit() {
 	Variance = metrics.NewHistogram(Sample)
 	metrics.Register("Variance", Variance)
 
+	DHTChoose = metrics.NewTimer()
+	metrics.Register("DHTChoose", DHTChoose)
+	DHRResponse = metrics.NewTimer()
+	metrics.Register("DHRResponse", DHRResponse)
+	DHTReplace = metrics.NewTimer()
+	metrics.Register("DHTReplace", DHTReplace)
+
+	RealFindProvider = metrics.NewTimer()
+	metrics.Register("RealFindProvider", RealFindProvider)
+	ModelFindProvider = metrics.NewTimer()
+	metrics.Register("ModelFindProvider", ModelFindProvider)
+
+	Samplefp = metrics.NewUniformSample(102400)
+	FPVariance = metrics.NewHistogram(Samplefp)
+	metrics.Register("FPVariance", FPVariance)
+
+	Samplefpn = metrics.NewUniformSample(102400)
+	FPInner = metrics.NewHistogram(Samplefpn)
+	metrics.Register("FPInner", FPInner)
+
 	FPMonitor = NewFPMonitor()
 	//go metrics.Log(metrics.DefaultRegistry, 1 * time.Second,log.New(os.Stdout, "metrics: ", log.Lmicroseconds))
 
@@ -200,7 +230,7 @@ func CollectMonitor() {
 
 	realtime := BDMonitor.RealTime()
 	modeltime := BDMonitor.ModeledTime()
-	v := int64(((realtime.Seconds() - modeltime.Seconds()) / realtime.Seconds()) * 10000) //Histogram requires int data
+	v := int64(((realtime.Seconds() - modeltime.Seconds()) / realtime.Seconds()) * 1000000000) //Histogram requires int data
 	RealGet.Update(realtime)
 	ModelGet.Update(modeltime)
 	Variance.Update(v)
@@ -208,7 +238,109 @@ func CollectMonitor() {
 	BDMonitor = Newmonitor()
 }
 
+func (m *FindProviderMonitor) CollectFPMonitor() {
+	m.EventList.Range(func(key, value interface{}) bool {
+		pe := value.(*ProviderEvent)
+		//if got providers for this block
+		pe.FirstGotProviderFrom.Range(func(key, value interface{}) bool {
+			var dhtchoose []time.Duration
+			var dhtresponse []time.Duration
+			var dhtreplace []time.Duration
+
+			// walk through critical path
+			cur := key.(string)
+			father := value.(string)
+			gotprovider := true
+			for true {
+				requestFather, ok1 := pe.FirstRequestTime.Load(father)
+				findFather, ok2 := m.FirstFindPeerTime.Load(father)
+				responseFather, ok3 := pe.FirstResponseTime.Load(father)
+				findcur, ok4 := m.FirstFindPeerTime.Load(cur)
+				//fmt.Printf("find cur %s: %s\n", cur, findcur.(time.Time).String())
+				//fmt.Printf("response from %s: %s\n", father, responseFather.(time.Time).String())
+				//fmt.Printf("send request to %s: %s\n", father, requestFather.(time.Time).String())
+				//fmt.Printf("find father %s: %s\n", father, findFather.(time.Time).String())
+				//the first round is the provider-provider giving provider, we don't count it as replace time
+				if gotprovider {
+					gotprovider = false
+				} else {
+					if ok3 && ok4 {
+						dhtreplace = append(dhtreplace, findcur.(time.Time).Sub(responseFather.(time.Time)))
+						//fmt.Printf("replace: %f\n", findcur.(time.Time).Sub(responseFather.(time.Time)).Seconds())
+					}
+				}
+				if ok1 && ok3 {
+					dhtresponse = append(dhtresponse, responseFather.(time.Time).Sub(requestFather.(time.Time)))
+					//fmt.Printf("response: %f\n", responseFather.(time.Time).Sub(requestFather.(time.Time)).Seconds())
+				}
+				//reach the peer who we know it before call for Async call. We get this peer from local routing table
+				if ok2 && findFather.(time.Time).Before(pe.FindProviderAsync) {
+					dhtchoose = append(dhtchoose, requestFather.(time.Time).Sub(pe.FindProviderAsync))
+					//fmt.Printf("choose %f\n", requestFather.(time.Time).Sub(pe.FindProviderAsync).Seconds())
+					break
+				}
+				if ok1 && ok2 {
+					//sometimes (the first intermediate node), we send request to it before we first find it
+					if requestFather.(time.Time).After(findFather.(time.Time)) {
+						dhtchoose = append(dhtchoose, requestFather.(time.Time).Sub(findFather.(time.Time)))
+						//fmt.Printf("choose %f\n", requestFather.(time.Time).Sub(findFather.(time.Time)).Seconds())
+					}
+				}
+				//检查log，看一下是否以上公式能够永远成立， 出现负数？
+				cur = father
+				if newf, ok := pe.FirstGotCloserFrom.Load(father); ok {
+					father = newf.(string)
+				} else {
+					break
+				}
+			}
+			//fmt.Printf("%s: choose %d, response %d, replace %d\n", pe.c, len(dhtchoose), len(dhtresponse), len(dhtreplace))
+			var dhtchoosetime time.Duration
+			var dhtresponsetime time.Duration
+			var dhtreplacetime time.Duration
+			var modeltime time.Duration
+			var realtime time.Duration
+			innernodes := 0
+			for _, d := range dhtchoose {
+				dhtchoosetime = time.Duration(dhtchoosetime.Nanoseconds() + d.Nanoseconds())
+				modeltime = time.Duration(modeltime.Nanoseconds() + d.Nanoseconds())
+			}
+			for _, d := range dhtresponse {
+				dhtresponsetime = time.Duration(dhtresponsetime.Nanoseconds() + d.Nanoseconds())
+				modeltime = time.Duration(modeltime.Nanoseconds() + d.Nanoseconds())
+				innernodes++
+			}
+			for _, d := range dhtreplace {
+				dhtreplacetime = time.Duration(dhtreplacetime.Nanoseconds() + d.Nanoseconds())
+				modeltime = time.Duration(modeltime.Nanoseconds() + d.Nanoseconds())
+			}
+
+			DHTChoose.Update(dhtchoosetime)
+			DHTReplace.Update(dhtreplacetime)
+			DHRResponse.Update(dhtresponsetime)
+			ModelFindProvider.Update(modeltime)
+			FPInner.Update(int64(innernodes))
+			if outputProviderTime, ok := pe.FirstOutputProviderTime.Load(key.(string)); ok {
+				realtime = outputProviderTime.(time.Time).Sub(pe.FindProviderAsync)
+				RealFindProvider.Update(realtime)
+			}
+			v := int64(((realtime.Seconds() - modeltime.Seconds()) / realtime.Seconds()) * 1000000000)
+			FPVariance.Update(v)
+
+			return true
+		})
+
+		return true
+	})
+
+	//inherit peer find time, because unlike other metrics which only live during this provider-finding period, this one is effective for all files
+	newFPM := NewFPMonitor()
+	newFPM.InheritFindPeer(FPMonitor)
+	FPMonitor = newFPM
+}
+
 func Output_Get() {
+	fmt.Println("-------------------------GET-------------------------")
 	fmt.Printf(" RootBlockService: %d ,     avg- %f ms, 0.9p- %f ms \n", RootBlockService.Count(), RootBlockService.Mean()/MS, RootBlockService.Percentile(float64(RootBlockService.Count())*0.9)/MS)
 	fmt.Printf(" RootNeighbourAsking: %d ,     avg- %f ms, 0.9p- %f ms \n", RootNeighbourAsking.Count(), RootNeighbourAsking.Mean()/MS, RootNeighbourAsking.Percentile(float64(RootNeighbourAsking.Count())*0.9)/MS)
 	fmt.Printf(" RootFindProvider: %d ,     avg- %f ms, 0.9p- %f ms \n", RootFindProvider.Count(), RootFindProvider.Mean()/MS, RootFindProvider.Percentile(float64(RootFindProvider.Count())*0.9)/MS)
@@ -225,7 +357,20 @@ func Output_Get() {
 
 	fmt.Printf(" RealGet: %d ,     avg- %f ms, 0.9p- %f ms \n", RealGet.Count(), RealGet.Mean()/MS, RealGet.Percentile(float64(RealGet.Count())*0.9)/MS)
 	fmt.Printf(" ModelGet: %d ,     avg- %f ms, 0.9p- %f ms \n", ModelGet.Count(), ModelGet.Mean()/MS, ModelGet.Percentile(float64(ModelGet.Count())*0.9)/MS)
-	fmt.Printf(" Variance(/10000): %d ,     avg- %f, 0.9p- %f \n", Variance.Count(), Variance.Mean()/MS, Variance.Percentile(float64(Variance.Count())*0.9)/MS)
+	fmt.Printf(" Variance: %d ,     avg- %f, 0.9p- %f \n", Variance.Count(), Variance.Mean()/1000000000, Variance.Percentile(float64(Variance.Count())*0.9)/1000000000)
+}
+
+func Output_FP() {
+	fmt.Println("-------------------------FindProvider-------------------------")
+	fmt.Printf(" DHTChoose: %d ,     avg- %f ms, 0.9p- %f ms \n", DHTChoose.Count(), DHTChoose.Mean()/MS, DHTChoose.Percentile(float64(DHTChoose.Count())*0.9)/MS)
+	fmt.Printf(" DHRResponse: %d ,     avg- %f ms, 0.9p- %f ms \n", DHRResponse.Count(), DHRResponse.Mean()/MS, DHRResponse.Percentile(float64(DHRResponse.Count())*0.9)/MS)
+	fmt.Printf(" DHTReplace: %d ,     avg- %f ms, 0.9p- %f ms \n", DHTReplace.Count(), DHTReplace.Mean()/MS, DHTReplace.Percentile(float64(DHTReplace.Count())*0.9)/MS)
+	fmt.Printf(" RealFindProvider: %d ,     avg- %f ms, 0.9p- %f ms \n", RealFindProvider.Count(), RealFindProvider.Mean()/MS, RealFindProvider.Percentile(float64(RealFindProvider.Count())*0.9)/MS)
+	fmt.Printf(" ModelFindProvider: %d ,     avg- %f ms, 0.9p- %f ms \n", ModelFindProvider.Count(), ModelFindProvider.Mean()/MS, ModelFindProvider.Percentile(float64(ModelFindProvider.Count())*0.9)/MS)
+
+	fmt.Printf(" FPInnerNodes: %d ,     avg- %f, 0.9p- %f \n", FPInner.Count(), FPInner.Mean(), FPInner.Percentile(float64(FPInner.Count())*0.9))
+	fmt.Printf(" FPVariance: %d ,     avg- %f, 0.9p- %f \n", FPVariance.Count(), FPVariance.Mean()/1000000000, FPVariance.Percentile(float64(FPVariance.Count())*0.9)/1000000000)
+
 }
 
 //--------------------------------TO-REMOVE----------------------------------------------------------------------

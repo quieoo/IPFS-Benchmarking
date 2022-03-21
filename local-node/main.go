@@ -26,6 +26,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -311,7 +312,9 @@ func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, ci
 		}
 
 		//finish
-		stallchan <- i
+		if !metrics.CMD_StallAfterUpload {
+			stallchan <- i
+		}
 	}
 	for i := 0; i < coreNumber; i++ {
 		go sendFunc(i)
@@ -405,8 +408,8 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 				//metrics.Output_Get_SingleFile()
 				//metrics.BDMonitor = metrics.Newmonitor()
 				metrics.CollectMonitor()
-				metrics.FPMonitor.CriticalPath()
-				metrics.FPMonitor = metrics.NewFPMonitor()
+				metrics.FPMonitor.CollectFPMonitor()
+
 				fmt.Printf("Thread %d get file %s %f\n", theOrder, cid, time.Now().Sub(start).Seconds()*1000)
 				//provide after get
 				if pag {
@@ -440,9 +443,11 @@ func main() {
 	flag.BoolVar(&(metrics.CMD_CloseDHTRefresh), "closedhtrefresh", false, "whether to close dht refresh")
 	flag.BoolVar(&(metrics.CMD_EnableMetrics), "enablemetrics", true, "whether to enable metrics")
 	flag.BoolVar(&(metrics.CMD_ProvideFirst), "providefirst", false, "manually provide file after upload")
+	flag.BoolVar(&(metrics.CMD_StallAfterUpload), "stallafterupload", false, "stall after upload")
 
 	var cmd string
 	var filesize int
+	var sizestring string
 	var filenumber int
 	var parallel int
 	var cidfile string
@@ -461,7 +466,7 @@ func main() {
 		"daemon: run ipfs daemon\n")
 	flag.StringVar(&cidfile, "cid", "cid", "name of cid file for uploading")
 
-	flag.IntVar(&filesize, "s", 256*1024, "file size")
+	flag.StringVar(&sizestring, "s", "262144", "file size, for example: 256k, 64m, 1024")
 	flag.IntVar(&filenumber, "n", 1, "file number")
 	flag.IntVar(&parallel, "p", 1, "concurrent operation number")
 
@@ -484,14 +489,25 @@ func main() {
 		fmt.Printf("Bad parameter for the concurrerntGet. It should be an integer belong to [1, )")
 		return
 	}
+	// file size
+	filesize, _ = strconv.Atoi(sizestring[:len(sizestring)-1])
+	if strings.HasSuffix(sizestring, "k") {
+		filesize = filesize * 1024
+	} else if strings.HasSuffix(sizestring, "m") {
+		filesize = filesize * 1024 * 1024
+	}
 
+	//metrics
 	if metrics.CMD_EnableMetrics {
 		metrics.TimersInit()
 		defer func() {
 			//metrics.Output_addBreakdown()
 			metrics.Output_Get()
+			metrics.Output_FP()
 		}()
 	}
+
+	//see logs
 	if len(seelogs) > 0 {
 		sublogs := strings.Split(seelogs, "-")
 		for _, s := range sublogs {
