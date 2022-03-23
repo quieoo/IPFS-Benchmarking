@@ -172,7 +172,7 @@ func UploadFile(file string, ctx context.Context, ipfs icore.CoreAPI, chunker st
 	defer func() {
 
 		metrics.AddTimer.Update(metrics.AddDura)
-		metrics.Provide.Update(metrics.ProvideDura)
+		//metrics.Provide.Update(metrics.ProvideDura)
 		metrics.Persist.Update(metrics.PersistDura)
 
 		dagTime := metrics.AddDura - metrics.ProvideDura - metrics.PersistDura
@@ -275,12 +275,14 @@ func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, ci
 			cid, err := UploadFile(tempFile, ctx, ipfs, chunker)
 			if metrics.CMD_ProvideFirst && firstupload {
 				firstupload = false
+				providestart := time.Now()
 				err := ipfs.Dht().Provide(ctx, cid)
 				if err != nil {
 					fmt.Printf("failed to provide file: %v\n", err.Error())
 					stallchan <- i
 					return
 				}
+				metrics.Provide.UpdateSince(providestart)
 			}
 
 			if err != nil {
@@ -396,6 +398,8 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 				start := time.Now()
 				metrics.BDMonitor.GetStartTime = start
 				rootNode, err := ipfs.Unixfs().Get(ctx, p)
+				metrics.GetNode.UpdateSince(start)
+				startWrite := time.Now()
 				if err != nil {
 					panic(fmt.Errorf("could not get file with CID: %s", err))
 				}
@@ -403,7 +407,7 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 				if err != nil {
 					panic(fmt.Errorf("could not write out the fetched CID: %s", err))
 				}
-
+				metrics.WriteTo.UpdateSince(startWrite)
 				metrics.BDMonitor.GetFinishTime = time.Now()
 				//metrics.Output_Get_SingleFile()
 				//metrics.BDMonitor = metrics.Newmonitor()
@@ -501,16 +505,19 @@ func main() {
 	if metrics.CMD_EnableMetrics {
 		metrics.TimersInit()
 		defer func() {
-			//metrics.Output_addBreakdown()
+			metrics.Output_addBreakdown()
 			metrics.Output_Get()
 			metrics.Output_FP()
+			metrics.OutputMetrics0()
 		}()
 	}
 
 	//see logs
 	if len(seelogs) > 0 {
 		sublogs := strings.Split(seelogs, "-")
+		fmt.Println("See logs: ")
 		for _, s := range sublogs {
+			fmt.Println("--" + s)
 			err := logging.SetLogLevel(s, "debug")
 			if err != nil {
 				fmt.Println("failed to set log level of: " + s + " ." + err.Error())

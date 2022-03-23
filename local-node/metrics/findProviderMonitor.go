@@ -75,6 +75,9 @@ func NewFPMonitor() *FindProviderMonitor {
 }
 
 func (m *FindProviderMonitor) NewProviderEvent(cid cid.Cid, multihash string, selfID string, selfcpl int) {
+	if !CMD_EnableMetrics {
+		return
+	}
 	//fmt.Printf("%s NewProviderEvent %s %s\n", time.Now(), cid, multihash)
 	if _, ok := m.EventList.Load(multihash); !ok {
 		var pe ProviderEvent
@@ -169,6 +172,9 @@ func (m *FindProviderMonitor) ReceiveResult(mh string, peer string) {
 }
 
 func (m *FindProviderMonitor) FindPeer(peer string) {
+	if !CMD_EnableMetrics {
+		return
+	}
 	if _, ok := m.FirstFindPeerTime.Load(peer); !ok {
 		m.FirstFindPeerTime.Store(peer, time.Now())
 	}
@@ -176,6 +182,9 @@ func (m *FindProviderMonitor) FindPeer(peer string) {
 }
 
 func (m *FindProviderMonitor) InheritFindPeer(oldMonitor *FindProviderMonitor) {
+	if !CMD_EnableMetrics {
+		return
+	}
 	oldMonitor.FirstFindPeerTime.Range(func(key, value interface{}) bool {
 		m.FirstFindPeerTime.Store(key.(string), value.(time.Time))
 

@@ -63,5 +63,6 @@ func main() {
 	fs := http.FileServer(http.Dir(filePath))
 	http.Handle("/files/", http.StripPrefix("/files", fs))
 
+	fmt.Println("http file server listening on 8080")
 	http.ListenAndServe(":8080", nil)
 }

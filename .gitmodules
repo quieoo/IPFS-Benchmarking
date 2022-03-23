@@ -28,3 +28,6 @@
 [submodule "local-node/go-libp2p-kad-dht"]
 	path = local-node/go-libp2p-kad-dht
 	url = https://github.com/quieoo/go-libp2p-kad-dht.git
+[submodule "local-node/go-ipfs-blockstore"]
+	path = local-node/go-ipfs-blockstore
+	url = https://github.com/quieoo/go-ipfs-blockstore.git

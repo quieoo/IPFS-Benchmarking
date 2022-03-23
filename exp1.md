@@ -12,13 +12,19 @@ go run server.go
 upload file:
 ````
 cd httpfs
-go run client.go -c upload -n 100 -s 262144 -fn filenames -h (server ip)
+go run client.go -c upload -n 100 -s 262144 -fn <filenames> -h <server ip>
 ````
+
+the file 'filename' specified will store all the file's names we just uploaded.
+
 download file:
 ```
 cd httpfs
 go run client.go -c download -fn filenames -h (server ip)
 ```
+
+after each round, run "./ini.sh" to clean memory and the temporary files
+
 # ipfs-none-resolve
 ## on provider:
 ````

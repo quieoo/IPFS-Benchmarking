@@ -8,33 +8,27 @@ import (
 )
 
 /*
-	BlockServiceGetTime=GetBlocksRequest-BlockserviceGet
-	NeighbourAskingTime:
-		if FirstGotProvider < FirstWantTo:
-			NeighbourAskingTime=FirstFindProvider-GetBlocksRequest
-	FindProviderTime:
-		if FirstGotProvider < FirstWantTo:
-			FindProviderTim=FirstGotProvider-FirstFindProvider
-	WaitToWantTime:
-		if FirstGotProvider < FirstWantTo:
-			WaitToWantTime=FirstWantTo-FirstGotProvider
-		else:
-			WaitToWantTime=FirstWantTo-GetBlocksRequest
-	BitswapTime=FirstReceive-FirstWantTo
-	BeforeVisitTime=BeginVisit-FirstReceive
-	VisitTime=FinishVisit-BeginVisit
+	TotalBlocks: LeafBlocks+InternalBlocks
+	  MaxLinks=BlockSize/LinkSize
+	  Levels= (Lg(LeafBlocks) / Lg(MaxLinks)) + 1
+	LoadBatchSize=Min{10, MaxLinks}
+	Batchs
 
-Total time of "Get" a file includes 2 part:
-	root node: BlockServiceGetTime + NeighbourAskingTime + FindProviderTime + WaitToWantTime + BitswapTime + BeforeVisitTime + VisitTime
-	leaf nodes:
-		(walker fetch 10 child nodes at a time)
-		Average(BlockServiceGetTime + WaitToWantTime + BitswapTime + BeforeVisitTime + VisitTime) * (leafNodeNumber/10+1)
+	BlockServiceTime=TotalBlocks * AvgBlockServiceTime
+	FindProviderTime=RootNeighbourAsking + RootFindProvider
+	WaitToWantTime=RootWaitToWant + AvgLeafWaitToWant * (Batchs)
+	BitswapTime=TotalBlocks * AvgBitswap
+	PutStoreTime=TotalBlocks * AvgPutToStore
+	VisitTime = TotalBlocks * AvgVisit
 */
 type Monitor struct {
 	EventList     sync.Map
 	Root          cid.Cid
 	GetStartTime  time.Time
 	GetFinishTime time.Time
+
+	TotalBlocks  int
+	TotalFetches int
 }
 
 type BlockEvent struct {
@@ -46,6 +40,7 @@ type BlockEvent struct {
 	FirstFindProvider time.Time
 	FirstGotProvider  sync.Map
 	FirstReceive      time.Time
+	FirstPutStore     time.Time
 	ReceiveFrom       string
 	BeginVisit        time.Time
 	FinishVisit       time.Time
@@ -71,10 +66,14 @@ func (m *Monitor) NewBlockEvent(c cid.Cid, l int) {
 	be.BlockServiceGet = ZeroTime
 	be.BeginVisit = ZeroTime
 	be.FinishVisit = ZeroTime
+	be.FirstPutStore = ZeroTime
 	be.lock = new(sync.RWMutex)
 	m.EventList.Store(c, be)
+	m.TotalBlocks++
+	m.TotalFetches++
 }
 func (m *Monitor) NewBlockEnevts(ks []cid.Cid, l int) {
+
 	//fmt.Printf("NewBlockEvent %s %s\n", c, time.Now())
 	for _, c := range ks {
 		var be BlockEvent
@@ -85,22 +84,13 @@ func (m *Monitor) NewBlockEnevts(ks []cid.Cid, l int) {
 		be.BlockServiceGet = ZeroTime
 		be.BeginVisit = ZeroTime
 		be.FinishVisit = ZeroTime
+		be.FirstPutStore = ZeroTime
 		be.lock = new(sync.RWMutex)
 		m.EventList.Store(c, be)
 	}
+	m.TotalBlocks += len(ks)
+	m.TotalFetches++
 }
-
-/*
-	remember all timestamps:
-		BlockServiceGet
-		BitswapGet
-		FindProviders
-		FoundProvide
-		SendWant
-		ReceiveBlock
-		BeginVisit
-		FinishVisit
-*/
 
 func (m *Monitor) BlockServiceGet(c cid.Cid) {
 	if v, ok := m.EventList.Load(c); ok {
@@ -136,6 +126,16 @@ func (m *Monitor) ReceiveBlock(c cid.Cid, p string) {
 			be.FirstReceive = time.Now()
 			be.ReceiveFrom = p
 			m.EventList.Store(c, be)
+		}
+	}
+}
+
+func (m *Monitor) PutStore(blk cid.Cid) {
+	if v, ok := m.EventList.Load(blk); ok {
+		be := v.(BlockEvent)
+		if be.FirstPutStore == ZeroTime {
+			be.FirstPutStore = time.Now()
+			m.EventList.Store(blk, be)
 		}
 	}
 }
@@ -205,55 +205,36 @@ func (m *Monitor) FinishVisit(c cid.Cid) {
 	}
 }
 
-//Statistics on all time stamps:
-func (m *Monitor) RootBlockServiceTime() time.Duration {
-	if c, ok := m.EventList.Load(m.Root); ok {
-		be := c.(BlockEvent)
-		return be.GetBlocksRequest.Sub(be.BlockServiceGet)
-	}
-	fmt.Println("root not found")
-	return time.Duration(0)
-}
-func (m *Monitor) AvgLeafBlockServiceTime() time.Duration {
-	sum := time.Duration(0)
-	var num int64
+func (m *Monitor) AvgBlockServiceTime() time.Duration {
+	var sumTime int64
+	num := 0
 	m.EventList.Range(func(key, value interface{}) bool {
 		be := value.(BlockEvent)
-		if be.Level > 0 {
-			sum += be.GetBlocksRequest.Sub(be.BlockServiceGet)
-			num++
+		if blockServ := be.BlockServiceGet; blockServ != ZeroTime {
+			if request := be.GetBlocksRequest; request != ZeroTime {
+				sumTime += request.Sub(blockServ).Nanoseconds()
+				num++
+			}
 		}
 		return true
 	})
-	if num == 0 {
-		return sum
+	if num != 0 {
+		return time.Duration(sumTime / int64(num))
 	}
-	if num == 0 {
-		return sum
-	}
-	return time.Duration(sum.Nanoseconds() / num)
+	return time.Duration(0)
 }
+
 func (m *Monitor) RootNeighbourAskingTime() time.Duration {
 	if c, ok := m.EventList.Load(m.Root); ok {
 		be := c.(BlockEvent)
 		if gotpt, ok := be.FirstGotProvider.Load(be.ReceiveFrom); ok {
 			if wantt, ok := be.FirstWantTo.Load(be.ReceiveFrom); ok {
-				if gotpt.(time.Time).Before(wantt.(time.Time)) {
+				if gotpt.(time.Time).Before(wantt.(time.Time)) && be.FirstFindProvider != ZeroTime && be.GetBlocksRequest != ZeroTime {
 					return be.FirstFindProvider.Sub(be.GetBlocksRequest)
-				} else {
-					fmt.Println("root sent WANT before find provider by 'FindProviders'")
-					return time.Duration(0)
 				}
-			} else {
-				fmt.Println("RootNeighbourAskingTime: root dose not receive from peer who just send WANT to")
-				return time.Duration(0)
 			}
-		} else {
-			//fmt.Println("root does not receive blocks from provider found by 'FindProviders'")
-			return time.Duration(0)
 		}
 	}
-	fmt.Println("root not found")
 	return time.Duration(0)
 }
 func (m *Monitor) RootFindProviderTime() time.Duration {
@@ -261,22 +242,12 @@ func (m *Monitor) RootFindProviderTime() time.Duration {
 		be := c.(BlockEvent)
 		if gotpt, ok := be.FirstGotProvider.Load(be.ReceiveFrom); ok {
 			if wantt, ok := be.FirstWantTo.Load(be.ReceiveFrom); ok {
-				if gotpt.(time.Time).Before(wantt.(time.Time)) {
+				if gotpt.(time.Time).Before(wantt.(time.Time)) && be.FirstFindProvider != ZeroTime {
 					return gotpt.(time.Time).Sub(be.FirstFindProvider)
-				} else {
-					fmt.Println("root sent WANT before find provider by 'FindProviders'")
-					return time.Duration(0)
 				}
-			} else {
-				fmt.Println("RootFindProviderTime: root dose not receive from peer who just send WANT to")
-				return time.Duration(0)
 			}
-		} else {
-			//fmt.Println("root does not receive blocks from provider found by 'FindProviders'")
-			return time.Duration(0)
 		}
 	}
-	fmt.Println("root not found")
 	return time.Duration(0)
 }
 
@@ -287,20 +258,10 @@ func (m *Monitor) RootWaitToWantTime() time.Duration {
 			if wantt, ok := be.FirstWantTo.Load(be.ReceiveFrom); ok {
 				if gotpt.(time.Time).Before(wantt.(time.Time)) {
 					return wantt.(time.Time).Sub(gotpt.(time.Time))
-				} else {
-					fmt.Println("root sent WANT before find provider by 'FindProviders'")
-					return time.Duration(0)
 				}
-			} else {
-				fmt.Println("RootWaitToWantTime: root dose not receive from peer who just send WANT to")
-				return time.Duration(0)
 			}
-		} else {
-			//fmt.Println("root does not receive blocks from provider found by 'FindProviders'")
-			return time.Duration(0)
 		}
 	}
-	fmt.Println("root not found")
 	return time.Duration(0)
 }
 func (m *Monitor) AvgLeafWaitToWantTime() time.Duration {
@@ -310,47 +271,35 @@ func (m *Monitor) AvgLeafWaitToWantTime() time.Duration {
 		be := value.(BlockEvent)
 		if be.Level > 0 {
 			if wantt, ok := be.FirstWantTo.Load(be.ReceiveFrom); ok {
-				sum += wantt.(time.Time).Sub(be.GetBlocksRequest)
-				num++
-			} else {
-				fmt.Println("leaf node dose not receive from peer who just send WANT to")
+				if be.FirstFindProvider != ZeroTime {
+					sum += wantt.(time.Time).Sub(be.GetBlocksRequest)
+					num++
+				}
 			}
 		}
-
 		return true
 	})
 	if num == 0 {
-		return sum
+		return time.Duration(0)
 	}
 	return time.Duration(sum.Nanoseconds() / num)
 }
-
-func (m *Monitor) RootBitswapTime() time.Duration {
-	if c, ok := m.EventList.Load(m.Root); ok {
-		be := c.(BlockEvent)
-		if wantt, ok := be.FirstWantTo.Load(be.ReceiveFrom); ok {
-			return be.FirstReceive.Sub(wantt.(time.Time))
-		} else {
-			fmt.Println("RootBitswapTime: root dose not receive from peer who just send WANT to")
-			return time.Duration(0)
-		}
-	}
-	fmt.Println("root not found")
-	return time.Duration(0)
-}
-func (m *Monitor) AvgLeafBitswapTime() time.Duration {
+func (m *Monitor) AvgBitswapTime() time.Duration {
 	sum := time.Duration(0)
 	var num int64
 	m.EventList.Range(func(key, value interface{}) bool {
 		be := value.(BlockEvent)
-		if be.Level > 0 {
-			if wantt, ok := be.FirstWantTo.Load(be.ReceiveFrom); ok {
+
+		if wantt, ok := be.FirstWantTo.Load(be.ReceiveFrom); ok {
+			if be.FirstReceive != ZeroTime {
 				sum += be.FirstReceive.Sub(wantt.(time.Time))
 				num++
-			} else {
-				fmt.Println("AvgLeafBitswapTime: dose not receive from peer who just send WANT to")
+
 			}
+		} else {
+			fmt.Println("AvgLeafBitswapTime: dose not receive from peer who just send WANT to")
 		}
+
 		return true
 	})
 	if num == 0 {
@@ -358,46 +307,28 @@ func (m *Monitor) AvgLeafBitswapTime() time.Duration {
 	}
 	return time.Duration(sum.Nanoseconds() / num)
 }
-
-func (m *Monitor) RootBeforeVisitTime() time.Duration {
-	if c, ok := m.EventList.Load(m.Root); ok {
-		be := c.(BlockEvent)
-		return be.BeginVisit.Sub(be.FirstReceive)
-	}
-	fmt.Println("root not found")
-	return time.Duration(0)
-}
-func (m *Monitor) AvgLeafBeforeVisitTime() time.Duration {
+func (m *Monitor) AvgPutToStore() time.Duration {
 	sum := time.Duration(0)
-	var num int64
+	num := 0
 	m.EventList.Range(func(key, value interface{}) bool {
 		be := value.(BlockEvent)
-		if be.Level > 0 {
-			sum += be.BeginVisit.Sub(be.FirstReceive)
+		if be.FirstReceive != ZeroTime && be.FirstPutStore != ZeroTime {
+			sum += be.FirstPutStore.Sub(be.FirstReceive)
 			num++
 		}
 		return true
 	})
 	if num == 0 {
-		return sum
+		return time.Duration(0)
 	}
-	return time.Duration(sum.Nanoseconds() / num)
+	return time.Duration(sum.Nanoseconds() / int64(num))
 }
-
-func (m *Monitor) RootVisitTime() time.Duration {
-	if c, ok := m.EventList.Load(m.Root); ok {
-		be := c.(BlockEvent)
-		return be.FinishVisit.Sub(be.BeginVisit)
-	}
-	fmt.Println("root not found")
-	return time.Duration(0)
-}
-func (m *Monitor) AvgLeafVisitTime() time.Duration {
+func (m *Monitor) AvgVisitTime() time.Duration {
 	sum := time.Duration(0)
 	var num int64
 	m.EventList.Range(func(key, value interface{}) bool {
 		be := value.(BlockEvent)
-		if be.Level > 0 {
+		if be.FinishVisit != ZeroTime && be.BeginVisit != ZeroTime {
 			sum += be.FinishVisit.Sub(be.BeginVisit)
 			num++
 		}
@@ -409,27 +340,20 @@ func (m *Monitor) AvgLeafVisitTime() time.Duration {
 	return time.Duration(sum.Nanoseconds() / num)
 }
 
-func (m *Monitor) LeafNumber() int {
-	result := 0
-	m.EventList.Range(func(key, value interface{}) bool {
-		be := value.(BlockEvent)
-		if be.Level > 0 {
-			result++
-		}
-
-		return true
-	})
-	return result
-}
 func (m *Monitor) RealTime() time.Duration {
 	return m.GetFinishTime.Sub(m.GetStartTime)
 }
 func (m *Monitor) ModeledTime() time.Duration {
-	root := m.RootBlockServiceTime().Nanoseconds() + m.RootNeighbourAskingTime().Nanoseconds() + m.RootFindProviderTime().Nanoseconds() +
-		m.RootWaitToWantTime().Nanoseconds() + m.RootBitswapTime().Nanoseconds() + m.RootBeforeVisitTime().Nanoseconds() + m.RootVisitTime().Nanoseconds()
-	leaf := int64(m.LeafNumber()/10+1) * (m.AvgLeafBlockServiceTime().Nanoseconds() + m.AvgLeafWaitToWantTime().Nanoseconds() + m.AvgLeafBitswapTime().Nanoseconds() + m.AvgLeafVisitTime().Nanoseconds() +
-		m.AvgLeafBeforeVisitTime().Nanoseconds())
-	return time.Duration(root + leaf)
+	var result int64
+	totalFetch := int64(m.TotalFetches)
+	result = totalFetch*m.AvgBlockServiceTime().Nanoseconds() +
+		m.RootNeighbourAskingTime().Nanoseconds() + m.RootFindProviderTime().Nanoseconds() +
+		m.RootWaitToWantTime().Nanoseconds() + (totalFetch-1)*m.AvgLeafWaitToWantTime().Nanoseconds() +
+		totalFetch*m.AvgBitswapTime().Nanoseconds() +
+		totalFetch*m.AvgPutToStore().Nanoseconds() +
+		totalFetch*m.AvgVisitTime().Nanoseconds()
+
+	return time.Duration(result)
 }
 
 func (m *Monitor) blkWantToTarget(c cid.Cid) time.Time {
@@ -457,7 +381,7 @@ func (m *Monitor) SingleFileMetrics() {
 func (m *Monitor) TimeStamps() {
 	fmt.Printf("BeginFileGet-FinishFileGet\n")
 	fmt.Printf("%.2f-%.2f\n", 0.0, m.GetFinishTime.Sub(m.GetStartTime).Seconds()*1000)
-	fmt.Printf("BlockserviceGet-GetBlocksRequest-FirstFindProvider-FirstGotProvider-FirstWantTo-FirstReceive-BeginVisit-FinishVisit\n")
+	fmt.Printf("BlockserviceGet-GetBlocksRequest-FirstFindProvider-FirstGotProvider-FirstWantTo-FirstReceive-PutStore-BeginVisit-FinishVisit\n")
 	m.EventList.Range(func(key, value interface{}) bool {
 		cid := key.(cid.Cid)
 		be := value.(BlockEvent)
@@ -488,6 +412,11 @@ func (m *Monitor) TimeStamps() {
 			fmt.Printf("0 ")
 		}
 		if value := be.FirstReceive; value != ZeroTime {
+			fmt.Printf("%.2f ", value.Sub(m.GetStartTime).Seconds()*1000)
+		} else {
+			fmt.Printf("0 ")
+		}
+		if value := be.FirstPutStore; value != ZeroTime {
 			fmt.Printf("%.2f ", value.Sub(m.GetStartTime).Seconds()*1000)
 		} else {
 			fmt.Printf("0 ")
