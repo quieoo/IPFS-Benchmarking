@@ -68,6 +68,9 @@ var Variance metrics.Histogram
 var GetNode metrics.Timer
 var WriteTo metrics.Timer
 
+var BlocksRedundant metrics.Histogram
+var RequestsRedundant metrics.Histogram
+
 //findProvider metrics
 var FPMonitor *FindProviderMonitor
 var DHTChoose metrics.Timer
@@ -157,6 +160,11 @@ func TimersInit() {
 	WriteTo = metrics.NewTimer()
 	metrics.Register("WriteTo", WriteTo)
 
+	BlocksRedundant = metrics.NewHistogram(metrics.NewExpDecaySample(1028, 0.015))
+	metrics.Register("BlocksRedundant", BlocksRedundant)
+	RequestsRedundant = metrics.NewHistogram(metrics.NewExpDecaySample(1028, 0.015))
+	metrics.Register("RequestsRedundant", RequestsRedundant)
+
 	DHTChoose = metrics.NewTimer()
 	metrics.Register("DHTChoose", DHTChoose)
 	DHRResponse = metrics.NewTimer()
@@ -205,6 +213,9 @@ func CollectMonitor() {
 	RealGet.Update(realtime)
 	ModelGet.Update(modeltime)
 	Variance.Update(v)
+
+	RequestsRedundant.Update(int64(BDMonitor.SumReqsRedundant()))
+	BlocksRedundant.Update(int64(BDMonitor.SumBlksRedundant()))
 
 	BDMonitor = Newmonitor()
 }
@@ -349,6 +360,9 @@ func Output_Get() {
 
 	fmt.Printf(" GetNode: %d ,     avg- %f ms, 0.9p- %f ms \n", GetNode.Count(), GetNode.Mean()/MS, GetNode.Percentile(float64(GetNode.Count())*0.9)/MS)
 	fmt.Printf(" WriteTo: %d ,     avg- %f ms, 0.9p- %f ms \n", WriteTo.Count(), WriteTo.Mean()/MS, WriteTo.Percentile(float64(WriteTo.Count())*0.9)/MS)
+
+	fmt.Printf(" BlocksRedundant: %d,     avg- %f, 0.9p- %f\n", BlocksRedundant.Sum(), BlocksRedundant.Mean(), BlocksRedundant.Percentile(float64(BlocksRedundant.Count())*0.9))
+	fmt.Printf(" RequestsRedundant: %d,     avg- %f, 0.9p- %f\n", RequestsRedundant.Sum(), RequestsRedundant.Mean(), RequestsRedundant.Percentile(float64(RequestsRedundant.Count())*0.9))
 
 }
 

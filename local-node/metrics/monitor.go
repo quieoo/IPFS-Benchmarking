@@ -44,6 +44,9 @@ type BlockEvent struct {
 	ReceiveFrom       string
 	BeginVisit        time.Time
 	FinishVisit       time.Time
+
+	NumOfRedundantReqs int
+	NumOfRedundantBlks int
 }
 
 func Newmonitor() *Monitor {
@@ -68,6 +71,8 @@ func (m *Monitor) NewBlockEvent(c cid.Cid, l int) {
 	be.FinishVisit = ZeroTime
 	be.FirstPutStore = ZeroTime
 	be.lock = new(sync.RWMutex)
+	be.NumOfRedundantReqs = 0
+	be.NumOfRedundantBlks = 0
 	m.EventList.Store(c, be)
 	m.TotalBlocks++
 	m.TotalFetches++
@@ -85,6 +90,8 @@ func (m *Monitor) NewBlockEnevts(ks []cid.Cid, l int) {
 		be.BeginVisit = ZeroTime
 		be.FinishVisit = ZeroTime
 		be.FirstPutStore = ZeroTime
+		be.NumOfRedundantReqs = 0
+		be.NumOfRedundantBlks = 0
 		be.lock = new(sync.RWMutex)
 		m.EventList.Store(c, be)
 	}
@@ -126,6 +133,11 @@ func (m *Monitor) ReceiveBlock(c cid.Cid, p string) {
 			be.FirstReceive = time.Now()
 			be.ReceiveFrom = p
 			m.EventList.Store(c, be)
+		} else {
+			// Nonzero FirstReceive means that we have already received a block with cid c;
+			// so this block is a redundant block.
+			be.NumOfRedundantBlks++
+			m.EventList.Store(c, be)
 		}
 	}
 }
@@ -144,6 +156,14 @@ func (m *Monitor) SendWant(c cid.Cid, p string) {
 	v, ok := m.EventList.Load(c)
 	if ok {
 		be := v.(BlockEvent)
+
+		// FirstReceive is nonzero means that we have received the
+		// wanted block with the cid c at FirstReceive. So this want
+		// is a redundant request
+		if be.FirstReceive != ZeroTime {
+			be.NumOfRedundantReqs++
+		}
+
 		be.lock.RLock()
 		_, ok = be.FirstWantTo.Load(p)
 		be.lock.RUnlock()
@@ -152,6 +172,7 @@ func (m *Monitor) SendWant(c cid.Cid, p string) {
 			be.FirstWantTo.Store(p, time.Now())
 			be.lock.Unlock()
 		}
+
 		m.EventList.Store(c, be)
 	}
 }
@@ -435,6 +456,26 @@ func (m *Monitor) TimeStamps() {
 
 		return true
 	})
+}
+
+func (m *Monitor)SumBlksRedundant() int {
+	sum := 0
+	m.EventList.Range(func(key, value interface{}) bool {
+		be := value.(BlockEvent)
+		sum += be.NumOfRedundantBlks
+		return true
+	})
+	return sum
+}
+
+func (m *Monitor)SumReqsRedundant() int {
+	sum := 0
+	m.EventList.Range(func(key, value interface{}) bool {
+		be := value.(BlockEvent)
+		sum += be.NumOfRedundantReqs
+		return true
+	})
+	return sum
 }
 
 func (be *BlockEvent) SetLevel(l int) {
