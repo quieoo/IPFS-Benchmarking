@@ -14,7 +14,7 @@ var CMD_CloseLANDHT = false
 var CMD_CloseDHTRefresh = false
 var CMD_CloseAddProvide = false
 var CMD_ProvideFirst = true
-var CMD_EnableMetrics = true
+var CMD_EnableMetrics = false
 var CMD_StallAfterUpload = false
 
 var TimerPin []metrics.Timer
@@ -73,9 +73,10 @@ var RequestsRedundant metrics.Histogram
 
 //findProvider metrics
 var FPMonitor *FindProviderMonitor
-var DHTChoose metrics.Timer
-var DHRResponse metrics.Timer
-var DHTReplace metrics.Timer
+var ChoosePeer metrics.Timer
+var DailPeer metrics.Timer
+var ResponsePeer metrics.Timer
+
 var RealFindProvider metrics.Timer
 var ModelFindProvider metrics.Timer
 var Samplefp metrics.Sample
@@ -99,6 +100,9 @@ func PrintStack(toUP int) {
 }
 
 func TimersInit() {
+	if !CMD_EnableMetrics {
+		return
+	}
 	for i := 0; i < pinNumber; i++ {
 		pin := metrics.NewTimer()
 		metrics.Register("pin"+string(rune(i)), pin)
@@ -165,12 +169,12 @@ func TimersInit() {
 	RequestsRedundant = metrics.NewHistogram(metrics.NewExpDecaySample(1028, 0.015))
 	metrics.Register("RequestsRedundant", RequestsRedundant)
 
-	DHTChoose = metrics.NewTimer()
-	metrics.Register("DHTChoose", DHTChoose)
-	DHRResponse = metrics.NewTimer()
-	metrics.Register("DHRResponse", DHRResponse)
-	DHTReplace = metrics.NewTimer()
-	metrics.Register("DHTReplace", DHTReplace)
+	ChoosePeer = metrics.NewTimer()
+	metrics.Register("ChoosePeer", ChoosePeer)
+	DailPeer = metrics.NewTimer()
+	metrics.Register("DailPeer", DailPeer)
+	ResponsePeer = metrics.NewTimer()
+	metrics.Register("ResponsePeer", ResponsePeer)
 
 	RealFindProvider = metrics.NewTimer()
 	metrics.Register("RealFindProvider", RealFindProvider)
@@ -225,85 +229,70 @@ func (m *FindProviderMonitor) CollectFPMonitor() {
 		return
 	}
 	m.EventList.Range(func(key, value interface{}) bool {
+		target := key.(string)
 		pe := value.(*ProviderEvent)
 		//if got providers for this block
 		pe.FirstGotProviderFrom.Range(func(key, value interface{}) bool {
-			var dhtchoose []time.Duration
-			var dhtresponse []time.Duration
-			var dhtreplace []time.Duration
+			var peerChoose []time.Duration
+			var peerDail []time.Duration
+			var peerResponse []time.Duration
 
 			// walk through critical path
-			cur := key.(string)
-			father := value.(string)
-			gotprovider := true
+			current := value.(string)
+			fmt.Printf("Critical Path for %s: \n", target)
 			for true {
-				requestFather, ok1 := pe.FirstRequestTime.Load(father)
-				findFather, ok2 := m.FirstFindPeerTime.Load(father)
-				responseFather, ok3 := pe.FirstResponseTime.Load(father)
-				findcur, ok4 := m.FirstFindPeerTime.Load(cur)
-				//fmt.Printf("find cur %s: %s\n", cur, findcur.(time.Time).String())
-				//fmt.Printf("response from %s: %s\n", father, responseFather.(time.Time).String())
-				//fmt.Printf("send request to %s: %s\n", father, requestFather.(time.Time).String())
-				//fmt.Printf("find father %s: %s\n", father, findFather.(time.Time).String())
-				//the first round is the provider-provider giving provider, we don't count it as replace time
-				if gotprovider {
-					gotprovider = false
-				} else {
-					if ok3 && ok4 {
-						dhtreplace = append(dhtreplace, findcur.(time.Time).Sub(responseFather.(time.Time)))
-						//fmt.Printf("replace: %f\n", findcur.(time.Time).Sub(responseFather.(time.Time)).Seconds())
+				m.PeerTimePrint(target, current)
+				father := ""
+				if !m.IsSeedPeers(target, current) {
+					if f, ok := pe.FirstGotCloserFrom.Load(current); ok {
+						father = f.(string)
+						responseFather, ok1 := pe.FirstResponseTime.Load(father)
+						queryCurrent, ok2 := pe.FirstQueryTime.Load(current)
+						if ok1 && ok2 && queryCurrent.(time.Time).After(responseFather.(time.Time)) {
+							peerChoose = append(peerChoose, queryCurrent.(time.Time).Sub(responseFather.(time.Time)))
+						}
 					}
 				}
-				if ok1 && ok3 {
-					dhtresponse = append(dhtresponse, responseFather.(time.Time).Sub(requestFather.(time.Time)))
-					//fmt.Printf("response: %f\n", responseFather.(time.Time).Sub(requestFather.(time.Time)).Seconds())
+				queryCurrent, ok2 := pe.FirstQueryTime.Load(current)
+				requestCurrent, ok3 := pe.FirstRequestTime.Load(current)
+				responseCurrent, ok4 := pe.FirstResponseTime.Load(current)
+				if ok2 && ok3 && requestCurrent.(time.Time).After(queryCurrent.(time.Time)) {
+					peerDail = append(peerDail, requestCurrent.(time.Time).Sub(queryCurrent.(time.Time)))
 				}
-				//reach the peer who we know it before call for Async call. We get this peer from local routing table
-				if ok2 && findFather.(time.Time).Before(pe.FindProviderAsync) {
-					dhtchoose = append(dhtchoose, requestFather.(time.Time).Sub(pe.FindProviderAsync))
-					//fmt.Printf("choose %f\n", requestFather.(time.Time).Sub(pe.FindProviderAsync).Seconds())
+				if ok3 && ok4 && responseCurrent.(time.Time).After(requestCurrent.(time.Time)) {
+					peerResponse = append(peerResponse, responseCurrent.(time.Time).Sub(requestCurrent.(time.Time)))
+				}
+
+				if father == "" {
 					break
 				}
-				if ok1 && ok2 {
-					//sometimes (the first intermediate node), we send request to it before we first find it
-					if requestFather.(time.Time).After(findFather.(time.Time)) {
-						dhtchoose = append(dhtchoose, requestFather.(time.Time).Sub(findFather.(time.Time)))
-						//fmt.Printf("choose %f\n", requestFather.(time.Time).Sub(findFather.(time.Time)).Seconds())
-					}
-				}
-				//检查log，看一下是否以上公式能够永远成立， 出现负数？
-				cur = father
-				if newf, ok := pe.FirstGotCloserFrom.Load(father); ok {
-					father = newf.(string)
-				} else {
-					break
-				}
+				current = father
 			}
-			//fmt.Printf("%s: choose %d, response %d, replace %d\n", pe.c, len(dhtchoose), len(dhtresponse), len(dhtreplace))
-			var dhtchoosetime time.Duration
-			var dhtresponsetime time.Duration
-			var dhtreplacetime time.Duration
+
+			var peerChooseTime time.Duration
+			var peerDailTime time.Duration
+			var peerResponseTime time.Duration
 			var modeltime time.Duration
 			var realtime time.Duration
-			innernodes := 0
-			for _, d := range dhtchoose {
-				dhtchoosetime = time.Duration(dhtchoosetime.Nanoseconds() + d.Nanoseconds())
+			innernodes := len(peerResponse)
+			for _, d := range peerChoose {
+				peerChooseTime = time.Duration(peerChooseTime.Nanoseconds() + d.Nanoseconds())
 				modeltime = time.Duration(modeltime.Nanoseconds() + d.Nanoseconds())
 			}
-			for _, d := range dhtresponse {
-				dhtresponsetime = time.Duration(dhtresponsetime.Nanoseconds() + d.Nanoseconds())
-				modeltime = time.Duration(modeltime.Nanoseconds() + d.Nanoseconds())
-				innernodes++
-			}
-			for _, d := range dhtreplace {
-				dhtreplacetime = time.Duration(dhtreplacetime.Nanoseconds() + d.Nanoseconds())
+			for _, d := range peerDail {
+				peerDailTime = time.Duration(peerDailTime.Nanoseconds() + d.Nanoseconds())
 				modeltime = time.Duration(modeltime.Nanoseconds() + d.Nanoseconds())
 			}
+			for _, d := range peerResponse {
+				peerResponseTime = time.Duration(peerResponseTime.Nanoseconds() + d.Nanoseconds())
+				modeltime = time.Duration(modeltime.Nanoseconds() + d.Nanoseconds())
+			}
+
 			modeltime = time.Duration(modeltime.Nanoseconds() + pe.FinishLocalSearch.Sub(pe.FindProviderAsync).Nanoseconds())
 
-			DHTChoose.Update(dhtchoosetime)
-			DHTReplace.Update(dhtreplacetime)
-			DHRResponse.Update(dhtresponsetime)
+			ChoosePeer.Update(peerChooseTime)
+			DailPeer.Update(peerDailTime)
+			ResponsePeer.Update(peerResponseTime)
 			ModelFindProvider.Update(modeltime)
 			FPInner.Update(int64(innernodes))
 			if outputProviderTime, ok := pe.FirstOutputProviderTime.Load(key.(string)); ok {
@@ -319,18 +308,22 @@ func (m *FindProviderMonitor) CollectFPMonitor() {
 		return true
 	})
 
-	//inherit peer find time, because unlike other metrics which only live during this provider-finding period, this one is effective for all files
 	newFPM := NewFPMonitor()
-	newFPM.InheritFindPeer(FPMonitor)
 	FPMonitor = newFPM
 }
 func OutputMetrics0() {
+	if !CMD_EnableMetrics {
+		return
+	}
 	for i := 0; i < pinNumber; i++ {
 		fmt.Printf("TimerPin-%d: %d ,     avg- %f ms, 0.9p- %f ms \n", i, TimerPin[i].Count(), TimerPin[i].Mean()/MS, TimerPin[i].Percentile(float64(TimerPin[i].Count())*0.9)/MS)
 	}
 }
 
 func Output_addBreakdown() {
+	if !CMD_EnableMetrics {
+		return
+	}
 	fmt.Println("-------------------------ADD-------------------------")
 	fmt.Printf("		avg(ms)    0.9p(ms)\n")
 	fmt.Printf("Provide: %f %f\n", Provide.Mean()/MS, Provide.Percentile(float64(Provide.Count())*0.9)/MS)
@@ -344,6 +337,9 @@ func Output_addBreakdown() {
 }
 
 func Output_Get() {
+	if !CMD_EnableMetrics {
+		return
+	}
 	fmt.Println("-------------------------GET-------------------------")
 	fmt.Printf(" BlockServiceTime: %d ,     avg- %f ms, 0.9p- %f ms \n", BlockServiceTime.Count(), BlockServiceTime.Mean()/MS, BlockServiceTime.Percentile(float64(BlockServiceTime.Count())*0.9)/MS)
 	fmt.Printf(" RootNeighbourAskingTime: %d ,     avg- %f ms, 0.9p- %f ms \n", RootNeighbourAskingTime.Count(), RootNeighbourAskingTime.Mean()/MS, RootNeighbourAskingTime.Percentile(float64(RootNeighbourAskingTime.Count())*0.9)/MS)
@@ -367,10 +363,13 @@ func Output_Get() {
 }
 
 func Output_FP() {
+	if !CMD_EnableMetrics {
+		return
+	}
 	fmt.Println("-------------------------FindProvider-------------------------")
-	fmt.Printf(" DHTChoose: %d ,     avg- %f ms, 0.9p- %f ms \n", DHTChoose.Count(), DHTChoose.Mean()/MS, DHTChoose.Percentile(float64(DHTChoose.Count())*0.9)/MS)
-	fmt.Printf(" DHRResponse: %d ,     avg- %f ms, 0.9p- %f ms \n", DHRResponse.Count(), DHRResponse.Mean()/MS, DHRResponse.Percentile(float64(DHRResponse.Count())*0.9)/MS)
-	fmt.Printf(" DHTReplace: %d ,     avg- %f ms, 0.9p- %f ms \n", DHTReplace.Count(), DHTReplace.Mean()/MS, DHTReplace.Percentile(float64(DHTReplace.Count())*0.9)/MS)
+	fmt.Printf(" ChoosePeer: %d ,     avg- %f ms, 0.9p- %f ms \n", ChoosePeer.Count(), ChoosePeer.Mean()/MS, ChoosePeer.Percentile(float64(ChoosePeer.Count())*0.9)/MS)
+	fmt.Printf(" DailPeer: %d ,     avg- %f ms, 0.9p- %f ms \n", DailPeer.Count(), DailPeer.Mean()/MS, DailPeer.Percentile(float64(DailPeer.Count())*0.9)/MS)
+	fmt.Printf(" ResponsePeer: %d ,     avg- %f ms, 0.9p- %f ms \n", ResponsePeer.Count(), ResponsePeer.Mean()/MS, ResponsePeer.Percentile(float64(ResponsePeer.Count())*0.9)/MS)
 	fmt.Printf(" RealFindProvider: %d ,     avg- %f ms, 0.9p- %f ms \n", RealFindProvider.Count(), RealFindProvider.Mean()/MS, RealFindProvider.Percentile(float64(RealFindProvider.Count())*0.9)/MS)
 	fmt.Printf(" ModelFindProvider: %d ,     avg- %f ms, 0.9p- %f ms \n", ModelFindProvider.Count(), ModelFindProvider.Mean()/MS, ModelFindProvider.Percentile(float64(ModelFindProvider.Count())*0.9)/MS)
 

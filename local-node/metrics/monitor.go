@@ -50,6 +50,9 @@ type BlockEvent struct {
 }
 
 func Newmonitor() *Monitor {
+	if !CMD_EnableMetrics {
+		return nil
+	}
 	var monitor Monitor
 	return &monitor
 }
@@ -57,6 +60,9 @@ func Newmonitor() *Monitor {
 var ZeroTime = time.Unix(0, 0)
 
 func (m *Monitor) NewBlockEvent(c cid.Cid, l int) {
+	if !CMD_EnableMetrics {
+		return
+	}
 	//fmt.Printf("NewBlockEvent %s %s\n", c, time.Now())
 	if l == 0 {
 		m.Root = c
@@ -78,7 +84,9 @@ func (m *Monitor) NewBlockEvent(c cid.Cid, l int) {
 	m.TotalFetches++
 }
 func (m *Monitor) NewBlockEnevts(ks []cid.Cid, l int) {
-
+	if !CMD_EnableMetrics {
+		return
+	}
 	//fmt.Printf("NewBlockEvent %s %s\n", c, time.Now())
 	for _, c := range ks {
 		var be BlockEvent
@@ -100,6 +108,9 @@ func (m *Monitor) NewBlockEnevts(ks []cid.Cid, l int) {
 }
 
 func (m *Monitor) BlockServiceGet(c cid.Cid) {
+	if !CMD_EnableMetrics {
+		return
+	}
 	if v, ok := m.EventList.Load(c); ok {
 		be := v.(BlockEvent)
 		be.BlockServiceGet = time.Now()
@@ -107,6 +118,9 @@ func (m *Monitor) BlockServiceGet(c cid.Cid) {
 	}
 }
 func (m *Monitor) BlockServiceGets(ks []cid.Cid) {
+	if !CMD_EnableMetrics {
+		return
+	}
 	t := time.Now()
 	for _, c := range ks {
 		if v, ok := m.EventList.Load(c); ok {
@@ -118,6 +132,9 @@ func (m *Monitor) BlockServiceGets(ks []cid.Cid) {
 }
 
 func (m *Monitor) BitswapGet(c cid.Cid) {
+	if !CMD_EnableMetrics {
+		return
+	}
 	if v, ok := m.EventList.Load(c); ok {
 		be := v.(BlockEvent)
 		be.GetBlocksRequest = time.Now()
@@ -125,6 +142,9 @@ func (m *Monitor) BitswapGet(c cid.Cid) {
 	}
 }
 func (m *Monitor) ReceiveBlock(c cid.Cid, p string) {
+	if !CMD_EnableMetrics {
+		return
+	}
 	//fmt.Printf("ReceiveBlock %s %s %s\n", c, p, time.Now())
 	value, ok := m.EventList.Load(c)
 	if ok {
@@ -143,6 +163,9 @@ func (m *Monitor) ReceiveBlock(c cid.Cid, p string) {
 }
 
 func (m *Monitor) PutStore(blk cid.Cid) {
+	if !CMD_EnableMetrics {
+		return
+	}
 	if v, ok := m.EventList.Load(blk); ok {
 		be := v.(BlockEvent)
 		if be.FirstPutStore == ZeroTime {
@@ -152,6 +175,9 @@ func (m *Monitor) PutStore(blk cid.Cid) {
 	}
 }
 func (m *Monitor) SendWant(c cid.Cid, p string) {
+	if !CMD_EnableMetrics {
+		return
+	}
 	//fmt.Printf("SendWantTo %s %s %s\n", c, p, time.Now())
 	v, ok := m.EventList.Load(c)
 	if ok {
@@ -177,6 +203,9 @@ func (m *Monitor) SendWant(c cid.Cid, p string) {
 	}
 }
 func (m *Monitor) FindProviders(c cid.Cid) {
+	if !CMD_EnableMetrics {
+		return
+	}
 	//fmt.Printf("FindProviders %s %s\n", c, time.Now())
 	v, ok := m.EventList.Load(c)
 	if ok {
@@ -189,6 +218,9 @@ func (m *Monitor) FindProviders(c cid.Cid) {
 
 }
 func (m *Monitor) FoundProvide(mh string, p string) {
+	if !CMD_EnableMetrics {
+		return
+	}
 	//fmt.Printf("FoundProvide %s %s %s\n", mh, p, time.Now())
 	var be BlockEvent
 	var c cid.Cid
@@ -212,6 +244,9 @@ func (m *Monitor) FoundProvide(mh string, p string) {
 }
 
 func (m *Monitor) BeginVisit(c cid.Cid) {
+	if !CMD_EnableMetrics {
+		return
+	}
 	if v, ok := m.EventList.Load(c); ok {
 		be := v.(BlockEvent)
 		be.BeginVisit = time.Now()
@@ -219,6 +254,9 @@ func (m *Monitor) BeginVisit(c cid.Cid) {
 	}
 }
 func (m *Monitor) FinishVisit(c cid.Cid) {
+	if !CMD_EnableMetrics {
+		return
+	}
 	if v, ok := m.EventList.Load(c); ok {
 		be := v.(BlockEvent)
 		be.FinishVisit = time.Now()
@@ -227,6 +265,9 @@ func (m *Monitor) FinishVisit(c cid.Cid) {
 }
 
 func (m *Monitor) AvgBlockServiceTime() time.Duration {
+	if !CMD_EnableMetrics {
+		return time.Duration(0)
+	}
 	var sumTime int64
 	num := 0
 	m.EventList.Range(func(key, value interface{}) bool {
@@ -246,6 +287,9 @@ func (m *Monitor) AvgBlockServiceTime() time.Duration {
 }
 
 func (m *Monitor) RootNeighbourAskingTime() time.Duration {
+	if !CMD_EnableMetrics {
+		return time.Duration(0)
+	}
 	if c, ok := m.EventList.Load(m.Root); ok {
 		be := c.(BlockEvent)
 		if gotpt, ok := be.FirstGotProvider.Load(be.ReceiveFrom); ok {
@@ -259,6 +303,9 @@ func (m *Monitor) RootNeighbourAskingTime() time.Duration {
 	return time.Duration(0)
 }
 func (m *Monitor) RootFindProviderTime() time.Duration {
+	if !CMD_EnableMetrics {
+		return time.Duration(0)
+	}
 	if c, ok := m.EventList.Load(m.Root); ok {
 		be := c.(BlockEvent)
 		if gotpt, ok := be.FirstGotProvider.Load(be.ReceiveFrom); ok {
@@ -273,6 +320,9 @@ func (m *Monitor) RootFindProviderTime() time.Duration {
 }
 
 func (m *Monitor) RootWaitToWantTime() time.Duration {
+	if !CMD_EnableMetrics {
+		return time.Duration(0)
+	}
 	if c, ok := m.EventList.Load(m.Root); ok {
 		be := c.(BlockEvent)
 		if gotpt, ok := be.FirstGotProvider.Load(be.ReceiveFrom); ok {
@@ -286,6 +336,9 @@ func (m *Monitor) RootWaitToWantTime() time.Duration {
 	return time.Duration(0)
 }
 func (m *Monitor) AvgLeafWaitToWantTime() time.Duration {
+	if !CMD_EnableMetrics {
+		return time.Duration(0)
+	}
 	sum := time.Duration(0)
 	var num int64
 	m.EventList.Range(func(key, value interface{}) bool {
@@ -306,6 +359,9 @@ func (m *Monitor) AvgLeafWaitToWantTime() time.Duration {
 	return time.Duration(sum.Nanoseconds() / num)
 }
 func (m *Monitor) AvgBitswapTime() time.Duration {
+	if !CMD_EnableMetrics {
+		return time.Duration(0)
+	}
 	sum := time.Duration(0)
 	var num int64
 	m.EventList.Range(func(key, value interface{}) bool {
@@ -329,6 +385,9 @@ func (m *Monitor) AvgBitswapTime() time.Duration {
 	return time.Duration(sum.Nanoseconds() / num)
 }
 func (m *Monitor) AvgPutToStore() time.Duration {
+	if !CMD_EnableMetrics {
+		return time.Duration(0)
+	}
 	sum := time.Duration(0)
 	num := 0
 	m.EventList.Range(func(key, value interface{}) bool {
@@ -345,6 +404,9 @@ func (m *Monitor) AvgPutToStore() time.Duration {
 	return time.Duration(sum.Nanoseconds() / int64(num))
 }
 func (m *Monitor) AvgVisitTime() time.Duration {
+	if !CMD_EnableMetrics {
+		return time.Duration(0)
+	}
 	sum := time.Duration(0)
 	var num int64
 	m.EventList.Range(func(key, value interface{}) bool {
@@ -362,9 +424,15 @@ func (m *Monitor) AvgVisitTime() time.Duration {
 }
 
 func (m *Monitor) RealTime() time.Duration {
+	if !CMD_EnableMetrics {
+		return time.Duration(0)
+	}
 	return m.GetFinishTime.Sub(m.GetStartTime)
 }
 func (m *Monitor) ModeledTime() time.Duration {
+	if !CMD_EnableMetrics {
+		return time.Duration(0)
+	}
 	var result int64
 	totalFetch := int64(m.TotalFetches)
 	result = totalFetch*m.AvgBlockServiceTime().Nanoseconds() +
@@ -378,6 +446,9 @@ func (m *Monitor) ModeledTime() time.Duration {
 }
 
 func (m *Monitor) blkWantToTarget(c cid.Cid) time.Time {
+	if !CMD_EnableMetrics {
+		return ZeroTime
+	}
 	if v, ok := m.EventList.Load(c); ok {
 		be := v.(BlockEvent)
 		if v, ok = be.FirstWantTo.Load(be.ReceiveFrom); ok {
@@ -387,6 +458,9 @@ func (m *Monitor) blkWantToTarget(c cid.Cid) time.Time {
 	return ZeroTime
 }
 func (m *Monitor) blkGotProviderTarget(c cid.Cid) time.Time {
+	if !CMD_EnableMetrics {
+		return ZeroTime
+	}
 	if v, ok := m.EventList.Load(c); ok {
 		be := v.(BlockEvent)
 		if v, ok = be.FirstGotProvider.Load(be.ReceiveFrom); ok {
@@ -396,10 +470,10 @@ func (m *Monitor) blkGotProviderTarget(c cid.Cid) time.Time {
 	return ZeroTime
 }
 
-func (m *Monitor) SingleFileMetrics() {
-
-}
 func (m *Monitor) TimeStamps() {
+	if !CMD_EnableMetrics {
+		return
+	}
 	fmt.Printf("BeginFileGet-FinishFileGet\n")
 	fmt.Printf("%.2f-%.2f\n", 0.0, m.GetFinishTime.Sub(m.GetStartTime).Seconds()*1000)
 	fmt.Printf("BlockserviceGet-GetBlocksRequest-FirstFindProvider-FirstGotProvider-FirstWantTo-FirstReceive-PutStore-BeginVisit-FinishVisit\n")
@@ -458,7 +532,10 @@ func (m *Monitor) TimeStamps() {
 	})
 }
 
-func (m *Monitor)SumBlksRedundant() int {
+func (m *Monitor) SumBlksRedundant() int {
+	if !CMD_EnableMetrics {
+		return 0
+	}
 	sum := 0
 	m.EventList.Range(func(key, value interface{}) bool {
 		be := value.(BlockEvent)
@@ -468,7 +545,10 @@ func (m *Monitor)SumBlksRedundant() int {
 	return sum
 }
 
-func (m *Monitor)SumReqsRedundant() int {
+func (m *Monitor) SumReqsRedundant() int {
+	if !CMD_EnableMetrics {
+		return 0
+	}
 	sum := 0
 	m.EventList.Range(func(key, value interface{}) bool {
 		be := value.(BlockEvent)
@@ -479,5 +559,8 @@ func (m *Monitor)SumReqsRedundant() int {
 }
 
 func (be *BlockEvent) SetLevel(l int) {
+	if !CMD_EnableMetrics {
+		return
+	}
 	be.Level = l
 }

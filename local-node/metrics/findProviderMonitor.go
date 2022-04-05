@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"fmt"
 	"github.com/ipfs/go-cid"
 	"sync"
 	"time"
@@ -40,8 +41,7 @@ import (
 		We compare this modeled time with real time: FirstOutputProviderTime-FindProviderAsync
 */
 type FindProviderMonitor struct {
-	EventList         sync.Map
-	FirstFindPeerTime sync.Map //Find peer means adding it to routing table
+	EventList sync.Map
 }
 
 /*
@@ -61,20 +61,45 @@ type ProviderEvent struct {
 	//structure of dht search tree
 	FirstGotProviderFrom sync.Map // provider,peer
 	FirstGotCloserFrom   sync.Map // closer, peer
+	SeedPeers            []string //10 seed peers from  local routing table
 
 	//time point in dht search tree
+	FirstQueryTime    sync.Map
 	FirstRequestTime  sync.Map // peerID,time
 	FirstResponseTime sync.Map //peerID, time
 
 	CPL sync.Map //peerID.string, cpl
 }
 
+func (m *FindProviderMonitor) PeerTimePrint(mh string, peer string) {
+	if !CMD_EnableMetrics {
+		return
+	}
+	fmt.Printf("FindProviderMonitor-PeerStates: %s\n", peer)
+	if v, ok := m.EventList.Load(mh); ok {
+		pe := v.(*ProviderEvent)
+		if qt, ok := pe.FirstQueryTime.Load(peer); ok {
+			fmt.Printf("First Query: %s\n", qt.(time.Time).String())
+		}
+		if qt, ok := pe.FirstRequestTime.Load(peer); ok {
+			fmt.Printf("First Request: %s\n", qt.(time.Time).String())
+		}
+		if qt, ok := pe.FirstResponseTime.Load(peer); ok {
+			fmt.Printf("First Response: %s\n", qt.(time.Time).String())
+		}
+	}
+}
+
 func NewFPMonitor() *FindProviderMonitor {
+	if !CMD_EnableMetrics {
+		return nil
+	}
 	var fpm FindProviderMonitor
 	return &fpm
 }
 
 func (m *FindProviderMonitor) NewProviderEvent(cid cid.Cid, multihash string, selfID string, selfcpl int) {
+
 	if !CMD_EnableMetrics {
 		return
 	}
@@ -92,7 +117,39 @@ func (m *FindProviderMonitor) NewProviderEvent(cid cid.Cid, multihash string, se
 		m.EventList.Store(multihash, &pe)
 	}
 }
+
+func (m *FindProviderMonitor) IsSeedPeers(mh string, peer string) bool {
+	if !CMD_EnableMetrics {
+		return false
+	}
+
+	if v, ok := m.EventList.Load(mh); ok {
+		pe := v.(*ProviderEvent)
+		for _, p := range pe.SeedPeers {
+			if p == peer {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (m *FindProviderMonitor) SeedPeers(mh string, sps []string) {
+	if !CMD_EnableMetrics {
+		return
+	}
+	if v, ok := m.EventList.Load(mh); ok {
+		pe := v.(*ProviderEvent)
+		for _, p := range sps {
+			pe.SeedPeers = append(pe.SeedPeers, p)
+		}
+	}
+}
+
 func (m *FindProviderMonitor) PMGotProviders(mh string) {
+	if !CMD_EnableMetrics {
+		return
+	}
 	//fmt.Printf("%s PMGotProviders %s\n", time.Now(), mh)
 	if v, ok := m.EventList.Load(mh); ok {
 		pe := v.(*ProviderEvent)
@@ -102,6 +159,9 @@ func (m *FindProviderMonitor) PMGotProviders(mh string) {
 }
 
 func (m *FindProviderMonitor) GotProviderFrom(mh string, provider string, from string) {
+	if !CMD_EnableMetrics {
+		return
+	}
 	//fmt.Printf("%s GotProviderFrom %s %s %s\n", time.Now(), target, provider, from)
 
 	if v, ok := m.EventList.Load(mh); ok {
@@ -118,6 +178,9 @@ func (m *FindProviderMonitor) GotProviderFrom(mh string, provider string, from s
 	}
 }
 func (m *FindProviderMonitor) GotCloserFrom(mh string, closers []string, from string, cpls []int) {
+	if !CMD_EnableMetrics {
+		return
+	}
 	for i, c := range closers {
 		//fmt.Printf("%s GotCloserFrom %s  %s\n", time.Now(), c, from)
 
@@ -143,7 +206,24 @@ func (m *FindProviderMonitor) GotCloserFrom(mh string, closers []string, from st
 
 }
 
+func (m *FindProviderMonitor) QueryPeer(mh string, peer string) {
+	if !CMD_EnableMetrics {
+		return
+	}
+	//fmt.Printf("%s QueryPeer %s %s\n", time.Now(), mh, peer)
+	if v, ok := m.EventList.Load(mh); ok {
+		pe := v.(*ProviderEvent)
+		if _, ok := pe.FirstQueryTime.Load(peer); !ok {
+			pe.FirstQueryTime.Store(peer, time.Now())
+			m.EventList.Store(mh, pe)
+		}
+	}
+}
+
 func (m *FindProviderMonitor) SendNodeWant(mh string, peer string, peercpl int) {
+	if !CMD_EnableMetrics {
+		return
+	}
 	//fmt.Printf("%s SendNodeWant %s %s\n", time.Now(), target, peer)
 	if v, ok := m.EventList.Load(mh); ok {
 		pe := v.(*ProviderEvent)
@@ -160,6 +240,9 @@ func (m *FindProviderMonitor) SendNodeWant(mh string, peer string, peercpl int) 
 }
 
 func (m *FindProviderMonitor) ReceiveResult(mh string, peer string) {
+	if !CMD_EnableMetrics {
+		return
+	}
 	//fmt.Printf("%s ReceiveResult %s %s\n", time.Now(), target, peer)
 
 	if v, ok := m.EventList.Load(mh); ok {
@@ -171,28 +254,10 @@ func (m *FindProviderMonitor) ReceiveResult(mh string, peer string) {
 	}
 }
 
-func (m *FindProviderMonitor) FindPeer(peer string) {
-	if !CMD_EnableMetrics {
-		return
-	}
-	if _, ok := m.FirstFindPeerTime.Load(peer); !ok {
-		m.FirstFindPeerTime.Store(peer, time.Now())
-	}
-
-}
-
-func (m *FindProviderMonitor) InheritFindPeer(oldMonitor *FindProviderMonitor) {
-	if !CMD_EnableMetrics {
-		return
-	}
-	oldMonitor.FirstFindPeerTime.Range(func(key, value interface{}) bool {
-		m.FirstFindPeerTime.Store(key.(string), value.(time.Time))
-
-		return true
-	})
-}
-
 func (m *FindProviderMonitor) CriticalPath() map[cid.Cid][]string {
+	if !CMD_EnableMetrics {
+		return nil
+	}
 	CPforBlk := make(map[cid.Cid][]string)
 	m.EventList.Range(func(key, value interface{}) bool {
 		var cp []string

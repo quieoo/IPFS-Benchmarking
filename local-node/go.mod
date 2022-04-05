@@ -3,7 +3,7 @@ module localIPFSNode
 go 1.14
 
 require (
-	github.com/ipfs/go-cid v0.1.0 // indirect
+	github.com/ipfs/go-cid v0.0.7 // indirect
 	github.com/ipfs/go-ipfs v0.7.0
 	github.com/ipfs/go-ipfs-config v0.12.0
 	github.com/ipfs/go-ipfs-files v0.0.8
