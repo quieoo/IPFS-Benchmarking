@@ -87,6 +87,10 @@ func (m *FindProviderMonitor) PeerTimePrint(mh string, peer string) {
 		if qt, ok := pe.FirstResponseTime.Load(peer); ok {
 			fmt.Printf("First Response: %s\n", qt.(time.Time).String())
 		}
+
+		if qt, ok := pe.FirstGotCloserFrom.Load(peer); ok {
+			fmt.Printf("Father peer: %s\n", qt.(string))
+		}
 	}
 }
 
@@ -122,7 +126,6 @@ func (m *FindProviderMonitor) IsSeedPeers(mh string, peer string) bool {
 	if !CMD_EnableMetrics {
 		return false
 	}
-
 	if v, ok := m.EventList.Load(mh); ok {
 		pe := v.(*ProviderEvent)
 		for _, p := range pe.SeedPeers {
@@ -140,8 +143,10 @@ func (m *FindProviderMonitor) SeedPeers(mh string, sps []string) {
 	}
 	if v, ok := m.EventList.Load(mh); ok {
 		pe := v.(*ProviderEvent)
-		for _, p := range sps {
-			pe.SeedPeers = append(pe.SeedPeers, p)
+		if len(pe.SeedPeers) == 0 {
+			for _, p := range sps {
+				pe.SeedPeers = append(pe.SeedPeers, p)
+			}
 		}
 	}
 }
@@ -182,22 +187,14 @@ func (m *FindProviderMonitor) GotCloserFrom(mh string, closers []string, from st
 		return
 	}
 	for i, c := range closers {
-		//fmt.Printf("%s GotCloserFrom %s  %s\n", time.Now(), c, from)
 
 		if v, ok := m.EventList.Load(mh); ok {
 			pe := v.(*ProviderEvent)
-			//pe.lock.RLock()
 			_, ok := pe.FirstGotCloserFrom.Load(c)
-			//_,ok2:=m.FirstFindPeerTime.Load(c)
 			_, ok3 := pe.FirstRequestTime.Load(c)
-			//pe.lock.RUnlock()
 			if !ok && !ok3 {
-				//pe.lock.Lock()
 				pe.FirstGotCloserFrom.Store(c, from)
 				pe.CPL.Store(c, cpls[i])
-				//pe.lock.Unlock()
-			} else {
-				//fmt.Printf("closer already have parent %s\n", p.(string))
 			}
 
 			m.EventList.Store(mh, pe)

@@ -239,9 +239,10 @@ func (m *FindProviderMonitor) CollectFPMonitor() {
 
 			// walk through critical path
 			current := value.(string)
-			fmt.Printf("Critical Path for %s: \n", target)
+			//fmt.Printf("SeedPeers: %v\n", pe.SeedPeers)
+			//fmt.Printf("Critical Path for %s: \n", target)
 			for true {
-				m.PeerTimePrint(target, current)
+				//m.PeerTimePrint(target, current)
 				father := ""
 				if !m.IsSeedPeers(target, current) {
 					if f, ok := pe.FirstGotCloserFrom.Load(current); ok {
