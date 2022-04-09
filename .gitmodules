@@ -31,6 +31,6 @@
 [submodule "local-node/go-ipfs-blockstore"]
 	path = local-node/go-ipfs-blockstore
 	url = https://github.com/quieoo/go-ipfs-blockstore.git
-[submodule "trace/GlobeTraff"]
-	path = trace/GlobeTraff
+[submodule "traces/GlobeTraff"]
+	path = traces/GlobeTraff
 	url = https://github.com/quieoo/GlobeTraff.git

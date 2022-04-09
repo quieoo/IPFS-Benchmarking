@@ -176,33 +176,8 @@ func main() {
 		}
 		wg.Wait()
 
-		//for {
-		//	torequest, _, err := br.ReadLine()
-		//	if err != nil {
-		//		fmt.Println("downloading stall caused by ", err.Error())
-		//		fmt.Printf(standardOutput("http-download", downloadTimer))
-		//		return
-		//	}
-		//	downloadstrat := time.Now()
-		//	url := "http://" + host + ":8080/files/" + string(torequest)
-		//	res, err := http.Get(url)
-		//	if err != nil {
-		//		fmt.Println("failed to request file: ", err.Error())
-		//		return
-		//	}
-		//
-		//	f, err := os.Create(downloadfilepath + "/" + string(torequest))
-		//	if err != nil {
-		//		fmt.Println("failed to create local file: ", err.Error())
-		//		return
-		//	}
-		//	_, err = io.Copy(f, res.Body)
-		//	if err != nil {
-		//		fmt.Println("failed to copy response to local file: ", err.Error())
-		//		return
-		//	}
-		//	downloadTimer.Update(time.Now().Sub(downloadstrat))
-		//}
+	} else if cmd == "tracUpload" {
+		traceFile := ""
 	}
 
 }
