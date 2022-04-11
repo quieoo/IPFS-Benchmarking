@@ -1,5 +1,4 @@
 # server
-run http file server on "localhost:8080", "/uploads" for uploading files, "/files" for downloading files
 ````
 go run server.go
 or
@@ -20,7 +19,7 @@ Usage of ./server:
     	servers indicates the total number of servers (default 1)
 ````
 # client
-build:
+
 ````
 go run client.go
 of
