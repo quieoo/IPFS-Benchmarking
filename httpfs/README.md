@@ -26,7 +26,7 @@ go run client.go
 of
 go build client.go && ./client
 ````
-usage:
+
 ````
 Usage of ./client:
   -c string
@@ -52,4 +52,4 @@ Usage of ./client:
   -size int
     	file size (default 262144)
 ````
-downloaded files saved in "./downloaded/"
+
