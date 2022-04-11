@@ -1,8 +1,6 @@
 # server
 ````
-go run server.go
-or
-go build server.go && ./server
+go build server.go
 ````
 
 ````
@@ -21,9 +19,7 @@ Usage of ./server:
 # client
 
 ````
-go run client.go
-of
-go build client.go && ./client
+go build client.go
 ````
 
 ````
