@@ -24,14 +24,16 @@ import (
 	"metrics"
 	"os"
 	"os/exec"
+	"os/signal"
 	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
-	"crypto/rand"
+	"math/rand"
 )
 
 func setupPlugins(externalPluginsPath string) error {
@@ -170,9 +172,8 @@ func getUnixfsNode(path string) (files.Node, error) {
 // NOTE: I modified function here adding a chunker para.
 func UploadFile(file string, ctx context.Context, ipfs icore.CoreAPI, chunker string) (icorepath.Resolved, error) {
 	defer func() {
-
 		metrics.AddTimer.Update(metrics.AddDura)
-		//metrics.Provide.Update(metrics.ProvideDura)
+		metrics.Provide.Update(metrics.ProvideDura)
 		metrics.Persist.Update(metrics.PersistDura)
 
 		dagTime := metrics.AddDura - metrics.ProvideDura - metrics.PersistDura
@@ -202,6 +203,7 @@ func UploadFile(file string, ctx context.Context, ipfs icore.CoreAPI, chunker st
 		fmt.Println("failed to upload file in function : UploadFile")
 		return nil, err
 	}
+
 	metrics.AddDura += time.Now().Sub(start)
 	//quieoo.AddTimer.UpdateSince(start)
 	return cid, err
@@ -439,6 +441,176 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 	wg.Wait()
 }
 
+func TraceUpload(index int, servers int, trace_docs string, chunker string, ipfs icore.CoreAPI, ctx context.Context) {
+
+	// in trace workload simulation, we no longer do manually provide, those are all left to original mechanism handle
+	metrics.CMD_CloseBackProvide = false
+	if index < 0 || index >= servers {
+		fmt.Println("Error, the index is out of range")
+		return
+	}
+	tracefile := trace_docs
+
+	if traces, err := os.Open(tracefile); err != nil {
+		fmt.Printf("failed to open trace file: %s, due to %s\n", tracefile, err.Error())
+	} else {
+		//parse and generate related file, with trace format:
+		// ItemID | Popularity | Size(Bytes) | Application Type
+		scanner := bufio.NewScanner(traces)
+		var sizes []int
+		var names []int
+		for scanner.Scan() {
+			line := scanner.Text()
+			codes := strings.Split(line, "\t")
+			size, _ := strconv.Atoi(codes[2])
+			sizes = append(sizes, size)
+			name, _ := strconv.Atoi(codes[0])
+			names = append(names, name)
+		}
+		if err := scanner.Err(); err != nil {
+			fmt.Printf("Cannot scanner text file: %s, err: [%v]\n", tracefile, err)
+			return
+		}
+		traces.Close()
+
+		// temp dir
+		tempDir := fmt.Sprintf("./temp%d", 0)
+		//mkdir temp dir for temp files
+		err := os.MkdirAll(tempDir, os.ModePerm)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		// file saves all cids
+		cidFile, _ := os.Create("ItemID-CID")
+
+		fileNumbers := len(sizes)
+		for i := 0; i < fileNumbers; i++ {
+			if i%100 == 0 {
+				fmt.Printf("uploading %.2f\n", float64(i)/float64(fileNumbers)*100)
+			}
+			if i%servers == index {
+				// generate random file and save it as temp
+				size := sizes[i]
+				content := NewLenChars(size, StdChars)
+				inputpath := tempDir + "/temp"
+				//s := time.Now()
+				err = ioutil.WriteFile(inputpath, []byte(content), 0666)
+				if err != nil {
+					fmt.Println(err.Error())
+					return
+				}
+				//fmt.Printf("WriteFile %f\n", time.Now().Sub(s).Seconds())
+
+				// put to ipfs store and background provide
+				cid, err := UploadFile(inputpath, ctx, ipfs, chunker)
+				// record file cid
+				outline := fmt.Sprintf("%d\t%s\n", names[i], strings.Split(cid.String(), "/")[2])
+				_, err = io.WriteString(cidFile, outline)
+				if err != nil {
+					fmt.Println(err.Error())
+					return
+				}
+			}
+		}
+		cidFile.Close()
+		fmt.Println("finished uploading")
+		// stall after uploading all files until receive os signal of interrupt
+		sigChan := make(chan os.Signal)
+		signal.Notify(sigChan, os.Interrupt, os.Kill, syscall.SIGTERM)
+		select {
+		case <-sigChan:
+		}
+	}
+
+}
+
+func TraceDownload(traceFile string, traceDownload_randomRequest bool, ipfs icore.CoreAPI, ctx context.Context) {
+	metrics.CMD_CloseBackProvide = false
+	if traces, err := os.Open(traceFile); err != nil {
+		fmt.Printf("failed to open trace file: %s, due to %s\n", traceFile, err.Error())
+		return
+	} else {
+		// create download directory
+		downloadfilepath := "./downloaded"
+		if _, err := os.Stat(downloadfilepath); os.IsNotExist(err) {
+			os.Mkdir(downloadfilepath, 0777)
+		}
+
+		// read ItemID-CID mapping
+		mappfile, err := os.Open("ItemID-CID")
+		if err != nil {
+			fmt.Printf("failed to open mapping file %s, due to %s\n", "ItemID-CID", err.Error())
+			return
+		}
+		scanner := bufio.NewScanner(mappfile)
+		ItemCid := make(map[string]string)
+		for scanner.Scan() {
+			line := scanner.Text()
+			codes := strings.Split(line, "\t")
+			ItemCid[codes[0]] = codes[1]
+		}
+		if err := scanner.Err(); err != nil {
+			fmt.Printf("Cannot scanner text file: %s, err: [%v]\n", mappfile.Name(), err)
+			return
+		}
+		mappfile.Close()
+
+		// load workload requests
+		scanner = bufio.NewScanner(traces)
+		var names []string
+
+		for scanner.Scan() {
+			line := scanner.Text()
+			codes := strings.Split(line, "\t")
+			names = append(names, codes[1])
+		}
+		if err := scanner.Err(); err != nil {
+			fmt.Printf("Cannot scanner text file: %s, err: [%v]\n", traces.Name(), err)
+			return
+		}
+		traces.Close()
+
+		//randomize request order
+		if traceDownload_randomRequest {
+			fmt.Println("randomizing request queue")
+			rand.Seed(time.Now().Unix())
+			rand.Shuffle(len(names), func(i, j int) {
+				names[i], names[j] = names[j], names[i]
+			})
+		}
+
+		//download according to requests
+		n := len(names)
+		for i := 0; i < n; i++ {
+			//show progress
+			if i%100 == 0 {
+				fmt.Printf("downloading %.2f \n", float64(i)/float64(n)*100)
+			}
+
+			toRequest := ItemCid[names[i]]
+			p := icorepath.New(toRequest)
+			start := time.Now()
+			metrics.BDMonitor.GetStartTime = start
+			rootNode, err := ipfs.Unixfs().Get(ctx, p)
+			metrics.GetNode.UpdateSince(start)
+			startWrite := time.Now()
+			if err != nil {
+				panic(fmt.Errorf("could not get file with CID: %s", err))
+			}
+			err = files.WriteTo(rootNode, downloadfilepath+"/"+names[i])
+			if err != nil {
+				panic(fmt.Errorf("could not write out the fetched CID: %s", err))
+			}
+			metrics.WriteTo.UpdateSince(startWrite)
+			metrics.BDMonitor.GetFinishTime = time.Now()
+			metrics.CollectMonitor()
+			metrics.FPMonitor.CollectFPMonitor()
+		}
+	}
+}
+
 func main() {
 
 	//read config option
@@ -448,6 +620,8 @@ func main() {
 	flag.BoolVar(&(metrics.CMD_EnableMetrics), "enablemetrics", true, "whether to enable metrics")
 	flag.BoolVar(&(metrics.CMD_ProvideFirst), "providefirst", false, "manually provide file after upload")
 	flag.BoolVar(&(metrics.CMD_StallAfterUpload), "stallafterupload", false, "stall after upload")
+
+	flag.BoolVar(&(metrics.CMD_FastSync), "fastsync", false, "Speed up IPFS by skip some overcautious synchronization: 1. skip flat-fs synchronizing files, 2. skip leveldb synchronizing files")
 
 	var cmd string
 	var filesize int
@@ -462,12 +636,19 @@ func main() {
 	var seelogs string
 	var chunker string    // NOTE: added a chunker option
 	var concurrentGet int // NOTE: added a option for the number of threads to concurrent get files.
+	var traceDownload_randomRequest bool
+
+	var index int
+	var servers int
+	var traceFile string
 
 	flag.IntVar(&redun_rate, "redun", 0, "The redundancy of the file when Benchmarking upload, 100 indicates that there is exactly the same file in the node, 0 means there is no existence of same file.(default 0)")
 	flag.StringVar(&cmd, "c", "", "operation type\n"+
 		"upload: upload files to ipfs, with -s for file size, -n for file number, -p for concurrent upload threads, -cid for specified uploaded file cid stored\n"+
 		"downloads: download file following specified cid file with single thread, -pag provide file after get, -np path to the file of neighbours which will be disconnected after each get\n"+
-		"daemon: run ipfs daemon\n")
+		"daemon: run ipfs daemon\n"+
+		"traceUpload: upload generated trace files, return ItemID-Cid mapping\n"+
+		"traceDownload: download according to workload trace file and ItemID-CID mapping\n")
 	flag.StringVar(&cidfile, "cid", "cid", "name of cid file for uploading")
 
 	flag.StringVar(&sizestring, "s", "262144", "file size, for example: 256k, 64m, 1024")
@@ -485,6 +666,12 @@ func main() {
 	// TODO: current monitor of Get-Breakdown are global, and not sufficiently tested in multi-threaded environment, may exists problems
 	flag.IntVar(&concurrentGet, "cg", 1, "concurrent get number")
 	flag.StringVar(&chunker, "chunker", "size-262144", "customized chunker")
+
+	// for trace workload testing
+	flag.StringVar(&traceFile, "f", "", "file indicates the path of doc file of generated trace")
+	flag.IntVar(&index, "i", 0, "given each server has a part of entire workload, index indicates current server own the i-th part of data. Index starts from 0.")
+	flag.IntVar(&servers, "servers", 1, "servers indicates the total number of servers")
+	flag.BoolVar(&traceDownload_randomRequest, "randomRequest", false, "random request means that current client will randomly reorder requests from generated workload")
 
 	flag.Parse()
 
@@ -565,6 +752,18 @@ func main() {
 			return
 		}
 
+	}
+	if cmd == "traceUpload" {
+		ctx, ipfs, cancel := Ini()
+		defer cancel()
+		TraceUpload(index, servers, traceFile, chunker, ipfs, ctx)
+		return
+	}
+	if cmd == "traceDownload" {
+		ctx, ipfs, cancel := Ini()
+		defer cancel()
+		TraceDownload(traceFile, traceDownload_randomRequest, ipfs, ctx)
+		return
 	}
 	_, _, cancel := Ini()
 	defer cancel()

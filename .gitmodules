@@ -34,3 +34,6 @@
 [submodule "traces/GlobeTraff"]
 	path = traces/GlobeTraff
 	url = https://github.com/quieoo/GlobeTraff.git
+[submodule "local-node/go-ds-leveldb"]
+	path = local-node/go-ds-leveldb
+	url = https://github.com/quieoo/go-ds-leveldb.git

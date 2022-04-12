@@ -138,7 +138,7 @@ func main() {
 			fileNumbers := len(sizes)
 			for i := 0; i < fileNumbers; i++ {
 				if i%100 == 0 {
-					fmt.Printf("uploading %d\n", i)
+					fmt.Printf("uploading %d %d \n", i, fileNumbers)
 				}
 				if i%servers == index {
 

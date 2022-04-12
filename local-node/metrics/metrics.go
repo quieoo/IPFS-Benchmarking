@@ -16,6 +16,7 @@ var CMD_CloseAddProvide = false
 var CMD_ProvideFirst = true
 var CMD_EnableMetrics = false
 var CMD_StallAfterUpload = false
+var CMD_FastSync = false
 
 var TimerPin []metrics.Timer
 var pinNumber = 2
@@ -327,14 +328,16 @@ func Output_addBreakdown() {
 	}
 	fmt.Println("-------------------------ADD-------------------------")
 	fmt.Printf("		avg(ms)    0.9p(ms)\n")
-	fmt.Printf("Provide: %f %f\n", Provide.Mean()/MS, Provide.Percentile(float64(Provide.Count())*0.9)/MS)
-	fmt.Printf("Persist: %f %f\n", Persist.Mean()/MS, Persist.Percentile(float64(Persist.Count())*0.9)/MS)
-	fmt.Printf("Dag: %f %f\n", Dag.Mean()/MS, Dag.Percentile(float64(Dag.Count())*0.9)/MS)
+	fmt.Printf("AddTimer: %d %f %f\n", AddTimer.Count(), AddTimer.Mean()/MS, AddTimer.Percentile(float64(AddTimer.Count())*0.9)/MS)
+	fmt.Printf("Provide: %d %f %f\n", Provide.Count(), Provide.Mean()/MS, Provide.Percentile(float64(Provide.Count())*0.9)/MS)
+	fmt.Printf("Persist: %d %f %f\n", Persist.Count(), Persist.Mean()/MS, Persist.Percentile(float64(Persist.Count())*0.9)/MS)
+	fmt.Printf("Dag&Other: %d %f %f\n", Dag.Count(), Dag.Mean()/MS, Dag.Percentile(float64(Dag.Count())*0.9)/MS)
 	if Persist.Count() == 0 {
 		return
 	}
 	fmt.Printf("SyncTime: %d ,     avg- %f ms, 0.9p- %f ms \n", SyncTime.Count()/Persist.Count(), SyncTime.Mean()/MS, SyncTime.Percentile(float64(SyncTime.Count())*0.9)/MS)
 	fmt.Printf("DeduplicateOverhead: %d ,     avg- %f ms, 0.9p- %f ms \n", DeduplicateOverhead.Count()/Persist.Count(), DeduplicateOverhead.Mean()/MS, DeduplicateOverhead.Percentile(float64(DeduplicateOverhead.Count())*0.9)/MS)
+	//fmt.Printf("FlatfsPut: %d ,     avg- %f, 0.9p- %f \n", FlatfsPut.Count(), FlatfsPut.Mean()/MS, FlatfsPut.Percentile(float64(FlatfsPut.Count())*0.9)/MS)
 }
 
 func Output_Get() {
@@ -407,6 +410,7 @@ func AddBreakDownSummery() {
 	merkleTime := AddfileTImeUse - StoreBlocksTimeUse - BufferCommitTIme
 	fmt.Printf("add time: %f ms(%f), merkle dag time: %f ms, store blocks time: %f ms, provide time: %f ms\n", AddTimeUse/FileNumber, (AddTimeUse/FileNumber-LastAverage)/LastAverage, merkleTime/FileNumber, storeTime/FileNumber, ProvideTimeUse/FileNumber)
 	LastAverage = AddTimeUse / FileNumber
+
 }
 
 var GetTimeUse float64

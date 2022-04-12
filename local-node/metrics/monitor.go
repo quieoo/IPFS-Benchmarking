@@ -16,7 +16,7 @@ import (
 
 	BlockServiceTime=TotalBlocks * AvgBlockServiceTime
 	FindProviderTime=RootNeighbourAsking + RootFindProvider
-	WaitToWantTime=RootWaitToWant + AvgLeafWaitToWant * (Batchs)
+	WaitToWantTime=RootWaitToWant + AvgLeafWaitToWafnt * (Batchs)
 	BitswapTime=TotalBlocks * AvgBitswap
 	PutStoreTime=TotalBlocks * AvgPutToStore
 	VisitTime = TotalBlocks * AvgVisit
@@ -373,10 +373,7 @@ func (m *Monitor) AvgBitswapTime() time.Duration {
 				num++
 
 			}
-		} else {
-			fmt.Println("AvgLeafBitswapTime: dose not receive from peer who just send WANT to")
 		}
-
 		return true
 	})
 	if num == 0 {
