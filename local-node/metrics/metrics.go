@@ -1,8 +1,10 @@
 package metrics
 
 import (
+	"bufio"
 	"fmt"
 	"github.com/rcrowley/go-metrics"
+	"os"
 	"runtime"
 	"time"
 )
@@ -17,6 +19,9 @@ var CMD_ProvideFirst = true
 var CMD_EnableMetrics = false
 var CMD_StallAfterUpload = false
 var CMD_FastSync = false
+var ProviderWorker = 8
+var CMD_EarlyAbort = false
+var EarlyAbortCheck = 5
 
 var TimerPin []metrics.Timer
 var pinNumber = 2
@@ -85,19 +90,51 @@ var FPVariance metrics.Histogram
 var Samplefpn metrics.Sample
 var FPInner metrics.Histogram
 
-func call(skip int) {
+// trace-download period throughput output
 
-	pc, file, line, _ := runtime.Caller(skip)
-	pcName := runtime.FuncForPC(pc).Name()
-	fmt.Println(fmt.Sprintf("%s   %d   %s", file, line, pcName))
-}
+var DownloadedFileSize []int
+var AvgDownloadLatency metrics.Timer
+var ALL_DownloadedFileSize []int
+var ALL_AvgDownloadLatency metrics.Timer
 
-func PrintStack(toUP int) {
-	fmt.Println("-----------------------")
-	for i := 2; i < toUP+2; i++ {
-		call(i)
-	}
-	fmt.Println("-----------------------")
+func TraceDownMetricsInit() {
+	AvgDownloadLatency = metrics.NewTimer()
+	metrics.Register("AvgDownloadLatency", AvgDownloadLatency)
+	ALL_AvgDownloadLatency = metrics.NewTimer()
+	metrics.Register("ALL_AvgDownloadLatency", ALL_AvgDownloadLatency)
+
+	go func() {
+		timeUnit := time.Minute
+		file, err := os.OpenFile("PeriodLog", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		if err != nil {
+			fmt.Printf("failed to open file, %s\n", err.Error())
+		}
+		write := bufio.NewWriter(file)
+		defer func() {
+			file.Close()
+		}()
+		for {
+			totalsize := 0
+			for _, s := range DownloadedFileSize {
+				totalsize += s
+			}
+			throughput := float64(totalsize) / 1024 / 1024 / (timeUnit.Seconds())
+
+			//time throughput(MB/s) count averageLatency(ms) 99-percentile Latency
+			line := fmt.Sprintf("%s %f %d %f %f\n", time.Now().String(), throughput, AvgDownloadLatency.Count(), AvgDownloadLatency.Mean()/MS, AvgDownloadLatency.Percentile(float64(AvgDownloadLatency.Count())*0.99)/MS)
+			_, err := write.WriteString(line)
+			if err != nil {
+				fmt.Printf("failed to write string to log file, %s\n", err.Error())
+			}
+			write.Flush()
+
+			DownloadedFileSize = []int{}
+			AvgDownloadLatency = metrics.NewTimer()
+			metrics.Register("AvgDownloadLatency", AvgDownloadLatency)
+			time.Sleep(timeUnit)
+		}
+
+	}()
 }
 
 func TimersInit() {
@@ -192,6 +229,11 @@ func TimersInit() {
 
 	FPMonitor = NewFPMonitor()
 	//go metrics.Log(metrics.DefaultRegistry, 1 * time.Second,log.New(os.Stdout, "metrics: ", log.Lmicroseconds))
+
+	ProvideTime = metrics.NewTimer()
+	metrics.Register("Provide", ProvideTime)
+	SuccessfullyProvide = 0
+	StartBackProvideTime = ZeroTime
 
 }
 
@@ -382,46 +424,16 @@ func Output_FP() {
 
 }
 
-//--------------------------------TO-REMOVE----------------------------------------------------------------------
-
-var AddTimeUse float64
-var LastAverage float64
-
-var FileNumber float64
-
-var ProvideTimeUse float64
-var StoreBlocksTimeUse float64
-var AddfileTImeUse float64
-var RestInAddAll float64
-var BufferCommitTIme float64
-
-func AddBreakDownInit() {
-	FileNumber = 0
-	LastAverage = 0
-	AddTimeUse = 0
-	ProvideTimeUse = 0
-	StoreBlocksTimeUse = 0
-	AddfileTImeUse = 0
-	RestInAddAll = 0
-	BufferCommitTIme = 0
-}
-func AddBreakDownSummery() {
-	storeTime := RestInAddAll + StoreBlocksTimeUse + BufferCommitTIme
-	merkleTime := AddfileTImeUse - StoreBlocksTimeUse - BufferCommitTIme
-	fmt.Printf("add time: %f ms(%f), merkle dag time: %f ms, store blocks time: %f ms, provide time: %f ms\n", AddTimeUse/FileNumber, (AddTimeUse/FileNumber-LastAverage)/LastAverage, merkleTime/FileNumber, storeTime/FileNumber, ProvideTimeUse/FileNumber)
-	LastAverage = AddTimeUse / FileNumber
-
+func call(skip int) {
+	pc, file, line, _ := runtime.Caller(skip)
+	pcName := runtime.FuncForPC(pc).Name()
+	fmt.Println(fmt.Sprintf("%s   %d   %s", file, line, pcName))
 }
 
-var GetTimeUse float64
-var ResolveTimeUse float64
-var GetFileNumber int
-
-func GetBreakDownInit() {
-	GetTimeUse = 0
-	ResolveTimeUse = 0
-	GetFileNumber = 0
-}
-func standardOutput(function string, t metrics.Timer) string {
-	return fmt.Sprintf("%s: %d files, average latency: %f ms, 0.99P latency: %f ms\n", function, t.Count(), t.Mean()/MS, t.Percentile(float64(t.Count())*0.99)/MS)
+func PrintStack(toUP int) {
+	fmt.Println("-----------------------")
+	for i := 2; i < toUP+2; i++ {
+		call(i)
+	}
+	fmt.Println("-----------------------")
 }

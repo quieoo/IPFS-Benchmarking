@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/binary"
 	"flag"
 	"fmt"
 	"github.com/rcrowley/go-metrics"
@@ -10,6 +11,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -20,6 +22,8 @@ import (
 
 const MS = 1000000
 const downloadfilepath = "./downloaded"
+
+var downloadNumber int // download part of trace files, debug use
 
 func main() {
 	var cmd string
@@ -47,6 +51,8 @@ func main() {
 	flag.BoolVar(&traceDownload_randomRequest, "randomRequest", false, "random request means that current client will randomly reorder requests from generated workload")
 	flag.StringVar(&trace_workload, "f", "", "file indicates the path of workload file of generated trace")
 	flag.IntVar(&servers, "s", 1, "servers indicates the total number of servers")
+	flag.IntVar(&downloadNumber, "dn", 0, "")
+
 	flag.Parse()
 
 	uploadTimer := metrics.NewTimer()
@@ -63,7 +69,7 @@ func main() {
 	} else if cmd == "download" {
 		Download(filenames, downloadfilepath, concurrentGet, ips[0], downloadTimer)
 	} else if cmd == "traceDownload" {
-		TraceDownload(trace_workload, traceDownload_randomRequest, ips, servers, downloadTimer)
+		TraceDownload(trace_workload, traceDownload_randomRequest, ips, servers)
 	}
 }
 
@@ -257,7 +263,17 @@ func Download(filenames string, downloadfilepath string, concurrentGet int, host
 	wg.Wait()
 }
 
-func TraceDownload(trace_workload string, traceDownload_randomRequest bool, ips []string, servers int, downloadTimer metrics.Timer) {
+var DownloadedFileSize []int
+var AvgDownloadLatency metrics.Timer
+var ALL_AvgDownloadLatency metrics.Timer
+var ALL_DownloadedFileSize []int
+
+func TraceDownload(trace_workload string, traceDownload_randomRequest bool, ips []string, servers int) {
+	AvgDownloadLatency = metrics.NewTimer()
+	metrics.Register("AvgDownloadLatency", AvgDownloadLatency)
+	ALL_AvgDownloadLatency = metrics.NewTimer()
+	metrics.Register("ALL_AvgDownloadLatency", ALL_AvgDownloadLatency)
+
 	// read trace workload file
 	tracefile := trace_workload
 	if traces, err := os.Open(tracefile); err != nil {
@@ -287,22 +303,57 @@ func TraceDownload(trace_workload string, traceDownload_randomRequest bool, ips 
 		//randomize request order
 		if traceDownload_randomRequest {
 			fmt.Println("randomizing request queue")
-			rand.Seed(time.Now().Unix())
-			rand.Shuffle(len(names), func(i, j int) {
-				names[i], names[j] = names[j], names[i]
-			})
+			names = Shuffle(names)
 		}
 
 		n := len(names)
+		if downloadNumber != 0 {
+			n = downloadNumber
+		}
+
+		StartRequest := time.Now()
+
+		//period log
+		go func() {
+			timeUnit := time.Minute
+			file, err := os.OpenFile("PeriodLog", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+			if err != nil {
+				fmt.Printf("failed to open file, %s\n", err.Error())
+			}
+			write := bufio.NewWriter(file)
+			defer func() {
+				file.Close()
+			}()
+			for {
+				totalsize := 0
+				for _, s := range DownloadedFileSize {
+					totalsize += s
+				}
+				throughput := float64(totalsize) / 1024 / 1024 / (timeUnit.Seconds())
+
+				//time throughput(MB/s) count averageLatency(ms) 99-percentile Latency
+				line := fmt.Sprintf("%s %f %d %f %f\n", time.Now().String(), throughput, AvgDownloadLatency.Count(), AvgDownloadLatency.Mean()/MS, AvgDownloadLatency.Percentile(float64(AvgDownloadLatency.Count())*0.99)/MS)
+				_, err := write.WriteString(line)
+				if err != nil {
+					fmt.Printf("failed to write string to log file, %s\n", err.Error())
+				}
+				write.Flush()
+
+				DownloadedFileSize = []int{}
+				AvgDownloadLatency = metrics.NewTimer()
+				metrics.Register("AvgDownloadLatency", AvgDownloadLatency)
+				time.Sleep(timeUnit)
+			}
+		}()
+
 		//request to each server
 		for i := 0; i < n; i++ {
-			if i%100 == 0 {
-				fmt.Printf("downloading %.2f \n", float64(i)/float64(n)*100)
-			}
+
 			toRequest := names[i]
+			//fmt.Println(toRequest)
 			hs := ips[toRequest%servers]
 			requestFile := strconv.Itoa(toRequest)
-
+			fmt.Printf("downloading %.2f from %s \n", float64(i)/float64(n)*100, hs)
 			downloadstrat := time.Now()
 			url := "http://" + hs + ":8080/files/" + requestFile
 			res, err := http.Get(url)
@@ -321,9 +372,47 @@ func TraceDownload(trace_workload string, traceDownload_randomRequest bool, ips 
 				fmt.Println("failed to copy response to local file: ", err.Error())
 				return
 			}
+
+			ALL_AvgDownloadLatency.UpdateSince(downloadstrat)
+			fi, _ := f.Stat()
+			DownloadedFileSize = append(DownloadedFileSize, int(fi.Size()))
+			ALL_DownloadedFileSize = append(ALL_DownloadedFileSize, int(fi.Size()))
+			AvgDownloadLatency.UpdateSince(downloadstrat)
+
 			f.Close()
-			downloadTimer.Update(time.Now().Sub(downloadstrat))
 		}
-		fmt.Println(standardOutput("trace-download", downloadTimer))
+
+		//summarize
+		TotalSize := 0
+		TotalTime := time.Now().Sub(StartRequest).Seconds()
+		for i := 0; i < len(ALL_DownloadedFileSize); i++ {
+			TotalSize += ALL_DownloadedFileSize[i]
+		}
+		throughput := float64(TotalSize/1024/1024) / TotalTime
+
+		line := fmt.Sprintf("%s %f %d %f %f\n", time.Now().String(), throughput, ALL_AvgDownloadLatency.Count(), ALL_AvgDownloadLatency.Mean()/1000000, ALL_AvgDownloadLatency.Percentile(float64(ALL_AvgDownloadLatency.Count())*0.99)/1000000)
+		fmt.Println(line)
 	}
+}
+func Shuffle(vals []int) []int {
+	interfaces, _ := net.Interfaces()
+	mac := int64(0)
+	for _, i := range interfaces {
+		//fmt.Println(len(i.HardwareAddr))
+		if ha := i.HardwareAddr; len(ha) > 0 {
+			ha = append(ha, 8)
+			ha = append(ha, 9)
+			mac += BytesToInt64(ha)
+		}
+	}
+	r := rand.New(rand.NewSource(time.Now().Unix() + mac))
+	ret := make([]int, len(vals))
+	perm := r.Perm(len(vals))
+	for i, randIndex := range perm {
+		ret[i] = vals[randIndex]
+	}
+	return ret
+}
+func BytesToInt64(buf []byte) int64 {
+	return int64(binary.BigEndian.Uint64(buf))
 }

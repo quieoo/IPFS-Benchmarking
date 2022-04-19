@@ -37,3 +37,6 @@
 [submodule "local-node/go-ds-leveldb"]
 	path = local-node/go-ds-leveldb
 	url = https://github.com/quieoo/go-ds-leveldb.git
+[submodule "local-node/interface-go-ipfs-core"]
+	path = local-node/interface-go-ipfs-core
+	url = https://github.com/quieoo/interface-go-ipfs-core.git

@@ -3,8 +3,10 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/binary"
 	"flag"
 	"fmt"
+	"github.com/ipfs/go-cid"
 	_ "github.com/ipfs/go-cid"
 	config "github.com/ipfs/go-ipfs-config"
 	files "github.com/ipfs/go-ipfs-files"
@@ -22,6 +24,7 @@ import (
 	"io"
 	"io/ioutil"
 	"metrics"
+	"net"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -129,27 +132,42 @@ func spawnEphemeral(ctx context.Context) (icore.CoreAPI, error) {
 	return createNode(ctx, repoPath)
 }
 
+// Spawns a node on the default repo location, if the repo exists
+func spawnDefault(ctx context.Context) (icore.CoreAPI, error) {
+	defaultPath, err := config.PathRoot()
+	if err != nil {
+		// shouldn't be possible
+		return nil, err
+	}
+
+	if err := setupPlugins(defaultPath); err != nil {
+		return nil, err
+
+	}
+
+	return createNode(ctx, defaultPath)
+}
+
 func Ini() (context.Context, icore.CoreAPI, context.CancelFunc) {
 	fmt.Println("-- Getting an IPFS node running -- ")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	//defer cancel()
 
-	/*
-		// Spawn a node using the default path (~/.ipfs), assuming that a repo exists there already
-		fmt.Println("Spawning node on default repo")
-		ipfs, err := spawnDefault(ctx)
-		if err != nil {
-			fmt.Println("No IPFS repo available on the default path")
-		}
-	*/
-
-	// Spawn a node using a temporary path, creating a temporary repo for the run
-	fmt.Println("Spawning node on a temporary repo")
-	ipfs, err := spawnEphemeral(ctx)
+	// Spawn a node using the default path (~/.ipfs), assuming that a repo exists there already
+	fmt.Println("Spawning node on default repo")
+	ipfs, err := spawnDefault(ctx)
 	if err != nil {
-		panic(fmt.Errorf("failed to spawn ephemeral node: %s", err))
+		fmt.Println("No IPFS repo available on the default path")
 	}
+
+	/*
+		// Spawn a node using a temporary path, creating a temporary repo for the run
+		fmt.Println("Spawning node on a temporary repo")
+		ipfs, err := spawnEphemeral(ctx)
+		if err != nil {
+			panic(fmt.Errorf("failed to spawn ephemeral node: %s", err))
+		}*/
 
 	fmt.Println("IPFS node is running")
 	return ctx, ipfs, cancel
@@ -442,7 +460,6 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 }
 
 func TraceUpload(index int, servers int, trace_docs string, chunker string, ipfs icore.CoreAPI, ctx context.Context) {
-
 	// in trace workload simulation, we no longer do manually provide, those are all left to original mechanism handle
 	metrics.CMD_CloseBackProvide = false
 	if index < 0 || index >= servers {
@@ -512,6 +529,10 @@ func TraceUpload(index int, servers int, trace_docs string, chunker string, ipfs
 					fmt.Println(err.Error())
 					return
 				}
+
+				if metrics.CMD_ProvideFirst {
+
+				}
 			}
 		}
 		cidFile.Close()
@@ -526,12 +547,45 @@ func TraceUpload(index int, servers int, trace_docs string, chunker string, ipfs
 
 }
 
-func TraceDownload(traceFile string, traceDownload_randomRequest bool, ipfs icore.CoreAPI, ctx context.Context) {
+func TraceDownload(traceFile string, traceDownload_randomRequest bool, ipfs icore.CoreAPI, ctx context.Context, addNeighbourPath string, pag bool, downloadNumber int) {
 	metrics.CMD_CloseBackProvide = false
+
+	//use different metrics, because monitor/FPMonitor those are too detailed and expensive, here we no longer need to track them
+	metrics.CMD_EnableMetrics = false
+	metrics.TraceDownMetricsInit()
+
 	if traces, err := os.Open(traceFile); err != nil {
 		fmt.Printf("failed to open trace file: %s, due to %s\n", traceFile, err.Error())
 		return
 	} else {
+		//manually add neighbours
+		addnf, err := os.Open(addNeighbourPath)
+		if err == nil {
+			fmt.Printf("Adding Neighbours:\n")
+			scanner := bufio.NewScanner(addnf)
+			for scanner.Scan() {
+				line := scanner.Text()
+				fmt.Printf("    %s\n", line)
+				ma, err := multiaddr.NewMultiaddr(line)
+				if err != nil {
+					fmt.Printf("    failed to parse multiAddress, due to %s\n", err.Error())
+				} else {
+
+					addrs, err := peer.AddrInfoFromP2pAddr(ma)
+					if err != nil {
+						fmt.Printf("    failed to transform multiaddr to addrInfo, due to %s\n", err.Error())
+					} else {
+						err := ipfs.Swarm().Connect(ctx, *addrs)
+						if err != nil {
+							fmt.Printf("    failed to swarm connect to peer, due to %s\n", err.Error())
+						}
+					}
+				}
+			}
+
+			addnf.Close()
+		}
+
 		// create download directory
 		downloadfilepath := "./downloaded"
 		if _, err := os.Stat(downloadfilepath); os.IsNotExist(err) {
@@ -575,14 +629,15 @@ func TraceDownload(traceFile string, traceDownload_randomRequest bool, ipfs icor
 		//randomize request order
 		if traceDownload_randomRequest {
 			fmt.Println("randomizing request queue")
-			rand.Seed(time.Now().Unix())
-			rand.Shuffle(len(names), func(i, j int) {
-				names[i], names[j] = names[j], names[i]
-			})
+			names = Shuffle(names)
 		}
 
 		//download according to requests
 		n := len(names)
+		if downloadNumber != 0 {
+			n = downloadNumber
+		}
+		startTime := time.Now()
 		for i := 0; i < n; i++ {
 			//show progress
 			if i%100 == 0 {
@@ -600,14 +655,39 @@ func TraceDownload(traceFile string, traceDownload_randomRequest bool, ipfs icor
 				panic(fmt.Errorf("could not get file with CID: %s", err))
 			}
 			err = files.WriteTo(rootNode, downloadfilepath+"/"+names[i])
+
 			if err != nil {
 				panic(fmt.Errorf("could not write out the fetched CID: %s", err))
 			}
+			size, _ := rootNode.Size()
+			metrics.DownloadedFileSize = append(metrics.DownloadedFileSize, int(size))
+			metrics.AvgDownloadLatency.UpdateSince(start)
+			metrics.ALL_DownloadedFileSize = append(metrics.ALL_DownloadedFileSize, int(size))
+			metrics.ALL_AvgDownloadLatency.UpdateSince(start)
+
 			metrics.WriteTo.UpdateSince(startWrite)
 			metrics.BDMonitor.GetFinishTime = time.Now()
 			metrics.CollectMonitor()
 			metrics.FPMonitor.CollectFPMonitor()
+
+			if pag {
+				cid, err := cid.Parse(toRequest)
+				if err != nil {
+					fmt.Printf("failed to parse cid %s\n", err.Error())
+				}
+				err = ipfs.SimpleProvider().Provide(cid)
+				if err != nil {
+					fmt.Printf("failed to do pag %s\n", err.Error())
+				}
+			}
 		}
+		totalsize := 0
+		for _, s := range metrics.ALL_DownloadedFileSize {
+			totalsize += s
+		}
+		throughput := float64(totalsize) / 1024 / 1024 / (time.Now().Sub(startTime).Seconds())
+		line := fmt.Sprintf("%s %f %d %f %f\n", time.Now().String(), throughput, metrics.ALL_AvgDownloadLatency.Count(), metrics.ALL_AvgDownloadLatency.Mean()/1000000, metrics.ALL_AvgDownloadLatency.Percentile(float64(metrics.ALL_AvgDownloadLatency.Count())*0.99)/1000000)
+		fmt.Println(line)
 	}
 }
 
@@ -621,8 +701,6 @@ func main() {
 	flag.BoolVar(&(metrics.CMD_ProvideFirst), "providefirst", false, "manually provide file after upload")
 	flag.BoolVar(&(metrics.CMD_StallAfterUpload), "stallafterupload", false, "stall after upload")
 
-	flag.BoolVar(&(metrics.CMD_FastSync), "fastsync", false, "Speed up IPFS by skip some overcautious synchronization: 1. skip flat-fs synchronizing files, 2. skip leveldb synchronizing files")
-
 	var cmd string
 	var filesize int
 	var sizestring string
@@ -630,7 +708,9 @@ func main() {
 	var parallel int
 	var cidfile string
 	var provideAfterGet bool
-	var neighboursPath string
+	var rmNeighbourPath string
+	var addNeighbourPath string
+
 	var ipfsPath string
 	var redun_rate int
 	var seelogs string
@@ -641,6 +721,7 @@ func main() {
 	var index int
 	var servers int
 	var traceFile string
+	var downloadNumber int
 
 	flag.IntVar(&redun_rate, "redun", 0, "The redundancy of the file when Benchmarking upload, 100 indicates that there is exactly the same file in the node, 0 means there is no existence of same file.(default 0)")
 	flag.StringVar(&cmd, "c", "", "operation type\n"+
@@ -657,7 +738,8 @@ func main() {
 
 	flag.BoolVar(&provideAfterGet, "pag", false, "whether to provide file after get it")
 
-	flag.StringVar(&neighboursPath, "np", "neighbours", "the path of file that records neighbours id, neighbours will be removed after geting file")
+	flag.StringVar(&rmNeighbourPath, "rmn", "remove_neighbours", "the path of file that records neighbours id, neighbours will be removed after getting file")
+	flag.StringVar(&addNeighbourPath, "addn", "add_neighbours", "the path of file that records neighbours id, neighbours will be added before getting files")
 
 	flag.StringVar(&ipfsPath, "ipfs", "./go-ipfs/cmd/ipfs/ipfs", "where go-ipfs exec exists")
 	flag.StringVar(&seelogs, "seelogs", "", "configure the specified log level to 'debug', logs connect with'-', such as 'dht-bitswap-blockservice'")
@@ -672,6 +754,17 @@ func main() {
 	flag.IntVar(&index, "i", 0, "given each server has a part of entire workload, index indicates current server own the i-th part of data. Index starts from 0.")
 	flag.IntVar(&servers, "servers", 1, "servers indicates the total number of servers")
 	flag.BoolVar(&traceDownload_randomRequest, "randomRequest", false, "random request means that current client will randomly reorder requests from generated workload")
+
+	flag.IntVar(&(metrics.ProviderWorker), "pw", 8, "Speed up IPFS by increasing the number of ProviderWorker, higher pw will increase provide bandwidth but brings higher memory overhead."+
+		"As tested, with a pw=80, eac=3, Provides/Min can reach 100+")
+	flag.BoolVar(&(metrics.CMD_FastSync), "fastsync", false, "Speed up IPFS by skipping some overcautious synchronization: 1. skip flat-fs synchronizing files, 2. skip leveldb synchronizing files")
+	flag.BoolVar(&(metrics.CMD_EarlyAbort), "earlyabort", false, "Speed up IPFS by early abort during findCloserPeers. "+
+		"For each ProviderWorker, it checks termination condition before send request to current nearest peer, "+
+		"we add a condition to check whether the smallest CPL of current top K nearst peers hasn't be updated for a few rounds."+
+		"If so, we do early abort.")
+	flag.IntVar(&(metrics.EarlyAbortCheck), "eac", 5, "the number of former min cpl checked to be determined early abort. The smaller eac is, the faster Provide can achieve."+
+		"But, as tested, when eac=0, some files cannot be found. eac should not be smaller than 3)")
+	flag.IntVar(&downloadNumber, "dn", 0, "")
 
 	flag.Parse()
 
@@ -696,6 +789,7 @@ func main() {
 			metrics.Output_Get()
 			metrics.Output_FP()
 			metrics.OutputMetrics0()
+			metrics.Output_ProvideMonitor()
 		}()
 	}
 
@@ -712,6 +806,9 @@ func main() {
 		}
 	}
 
+	if metrics.CMD_EarlyAbort {
+		metrics.LastFewProvides = metrics.NewQueue(1024)
+	}
 	if cmd == "upload" {
 		ctx, ipfs, cancel := Ini()
 
@@ -723,7 +820,7 @@ func main() {
 	if cmd == "downloads" {
 		ctx, ipfs, cancel := Ini()
 		defer cancel()
-		DownloadSerial(ctx, ipfs, cidfile, provideAfterGet, neighboursPath, concurrentGet)
+		DownloadSerial(ctx, ipfs, cidfile, provideAfterGet, rmNeighbourPath, concurrentGet)
 		return
 	}
 	if cmd == "daemon" {
@@ -762,7 +859,7 @@ func main() {
 	if cmd == "traceDownload" {
 		ctx, ipfs, cancel := Ini()
 		defer cancel()
-		TraceDownload(traceFile, traceDownload_randomRequest, ipfs, ctx)
+		TraceDownload(traceFile, traceDownload_randomRequest, ipfs, ctx, addNeighbourPath, provideAfterGet, downloadNumber)
 		return
 	}
 	_, _, cancel := Ini()
@@ -863,4 +960,26 @@ func DisconnectToPeers(ctx context.Context, ipfs icore.CoreAPI, remove string) e
 		break
 	}
 	return nil
+}
+func Shuffle(vals []string) []string {
+	interfaces, _ := net.Interfaces()
+	mac := int64(0)
+	for _, i := range interfaces {
+		//fmt.Println(len(i.HardwareAddr))
+		if ha := i.HardwareAddr; len(ha) > 0 {
+			ha = append(ha, 8)
+			ha = append(ha, 9)
+			mac += BytesToInt64(ha)
+		}
+	}
+	r := rand.New(rand.NewSource(time.Now().Unix() + mac))
+	ret := make([]string, len(vals))
+	perm := r.Perm(len(vals))
+	for i, randIndex := range perm {
+		ret[i] = vals[randIndex]
+	}
+	return ret
+}
+func BytesToInt64(buf []byte) int64 {
+	return int64(binary.BigEndian.Uint64(buf))
 }
