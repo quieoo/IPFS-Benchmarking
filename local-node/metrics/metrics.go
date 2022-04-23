@@ -6,6 +6,7 @@ import (
 	"github.com/rcrowley/go-metrics"
 	"os"
 	"runtime"
+	"sync"
 	"time"
 )
 
@@ -436,4 +437,45 @@ func PrintStack(toUP int) {
 		call(i)
 	}
 	fmt.Println("-----------------------")
+}
+
+// BackGround running metrics report
+
+var RecvFrom sync.Map
+var provided int
+
+func RecordRecv(cid, peer string) {
+	if v, ok := RecvFrom.Load(peer); ok {
+		copyCount := v.(int)
+		copyCount++
+		RecvFrom.Store(peer, copyCount)
+	} else {
+		RecvFrom.Store(peer, 1)
+	}
+	//fmt.Printf("recv %s from %s\n", cid, peer)
+}
+func RecordProvide(cid string) {
+	provided++
+}
+
+func StartBackReport() {
+	dur := time.Minute
+	go func() {
+		for {
+			time.Sleep(dur)
+
+			fmt.Printf("%s Report: \n", time.Now().String())
+			fmt.Printf("    recvFrom:\n")
+			RecvFrom.Range(func(key, value interface{}) bool {
+				p := key.(string)
+				c := value.(int)
+				fmt.Printf("        %s %d\n", p, c)
+				return true
+			})
+			RecvFrom = sync.Map{}
+
+			fmt.Printf("    Provide: %d\n", provided)
+			provided = 0
+		}
+	}()
 }

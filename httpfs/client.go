@@ -353,7 +353,9 @@ func TraceDownload(trace_workload string, traceDownload_randomRequest bool, ips 
 			//fmt.Println(toRequest)
 			hs := ips[toRequest%servers]
 			requestFile := strconv.Itoa(toRequest)
-			fmt.Printf("downloading %.2f from %s \n", float64(i)/float64(n)*100, hs)
+			if i%100 == 0 {
+				fmt.Printf("downloading %.2f from %s \n", float64(i)/float64(n)*100, hs)
+			}
 			downloadstrat := time.Now()
 			url := "http://" + hs + ":8080/files/" + requestFile
 			res, err := http.Get(url)
@@ -372,10 +374,9 @@ func TraceDownload(trace_workload string, traceDownload_randomRequest bool, ips 
 				fmt.Println("failed to copy response to local file: ", err.Error())
 				return
 			}
-
-			ALL_AvgDownloadLatency.UpdateSince(downloadstrat)
 			fi, _ := f.Stat()
 			DownloadedFileSize = append(DownloadedFileSize, int(fi.Size()))
+			ALL_AvgDownloadLatency.UpdateSince(downloadstrat)
 			ALL_DownloadedFileSize = append(ALL_DownloadedFileSize, int(fi.Size()))
 			AvgDownloadLatency.UpdateSince(downloadstrat)
 

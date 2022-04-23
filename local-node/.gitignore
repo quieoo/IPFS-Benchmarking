@@ -11,3 +11,6 @@ localIPFSNode
 cid
 main
 output
+/add_neighbours_s
+/log2
+/logr

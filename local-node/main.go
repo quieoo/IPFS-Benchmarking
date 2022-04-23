@@ -467,6 +467,7 @@ func TraceUpload(index int, servers int, trace_docs string, chunker string, ipfs
 		return
 	}
 	tracefile := trace_docs
+	metrics.StartBackReport()
 
 	if traces, err := os.Open(tracefile); err != nil {
 		fmt.Printf("failed to open trace file: %s, due to %s\n", tracefile, err.Error())
@@ -553,6 +554,7 @@ func TraceDownload(traceFile string, traceDownload_randomRequest bool, ipfs icor
 	//use different metrics, because monitor/FPMonitor those are too detailed and expensive, here we no longer need to track them
 	metrics.CMD_EnableMetrics = false
 	metrics.TraceDownMetricsInit()
+	metrics.StartBackReport()
 
 	if traces, err := os.Open(traceFile); err != nil {
 		fmt.Printf("failed to open trace file: %s, due to %s\n", traceFile, err.Error())
@@ -639,11 +641,6 @@ func TraceDownload(traceFile string, traceDownload_randomRequest bool, ipfs icor
 		}
 		startTime := time.Now()
 		for i := 0; i < n; i++ {
-			//show progress
-			if i%100 == 0 {
-				fmt.Printf("downloading %.2f \n", float64(i)/float64(n)*100)
-			}
-
 			toRequest := ItemCid[names[i]]
 			p := icorepath.New(toRequest)
 			start := time.Now()
