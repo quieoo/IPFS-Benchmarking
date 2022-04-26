@@ -1,0 +1,59 @@
+This is a comprehensive experiment on IPFS and HTTP. 
+
+We try to demonstrate that the advantage of IPFS lies in its scalability, especially on a global network scale, when the network distance between the client and the server are large.
+
+
+>one example of uploading and download 100 files with size of 256KB
+# http
+## on server:
+
+```
+cd httpfs
+go run server.go
+```
+
+## on client:
+upload file:
+````
+cd httpfs
+go run client.go -c upload -n 100 -s 262144 -fn <filenames> -h <server ip>
+````
+
+the file 'filename' specified will store all the file's names we just uploaded.
+
+download file:
+```
+cd httpfs
+go run client.go -c download -fn filenames -h (server ip)
+```
+
+after each round, run "./ini.sh" to clean memory and the temporary files
+
+# ipfs-none-resolve
+## on provider:
+````
+cd local-node
+./main -c upload -n 100 -s 262144 -cid cids
+./main -c daemon
+````
+copy "cids" to client local-node directory
+
+## on client:
+````
+./main -c downloads -cid cids
+````
+
+# ipfs-resolve
+## on provider:
+````
+cd local-node
+./main -c upload -n 100 -s 262144 -cid cids
+./main -c daemon
+````
+copy "cids" to client local-node directory
+
+store provider's peer identity in file "neighbours"
+## on client:
+````
+./main -c downloads -cid cids -np neighbours
+````
