@@ -1,4 +1,4 @@
-This is a comprehensive experiment on IPFS and HTTP. 
+This is a synthetic experiment on IPFS and HTTP. 
 
 We try to demonstrate that the advantage of IPFS lies in its scalability, especially on a global network scale, when the network distance between the client and the server are large.
 
