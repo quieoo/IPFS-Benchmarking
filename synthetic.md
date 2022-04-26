@@ -21,9 +21,16 @@ java -jar dist/JavaGUI.jar
 Generated trace files will be output to `JavaGUI/data/`, and look like `docs.all` and `workload.all`.
 
 Next, we will make use of the benchmark tools to test the performance of IPFS and HTTP.
+
+We implement a many-to-many architecture, so on each server or client run the instructions we give below.
+![Alt](sync_architecture.png)
+
 # 2. Test HTTP
 
-## 2.1 Run Server
+## 2.1 Run Servers
+```
+cd IPFS-Benchmarking/httpfs
+./server -c traceUpload -f ../traces/GlobeTraff/JavaGUI/data/docs.all -i 0 -s 1
+```
 
-
-
+Flag `s` indicates the number of total 
