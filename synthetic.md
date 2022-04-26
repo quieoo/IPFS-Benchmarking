@@ -5,9 +5,8 @@ We try to demonstrate that the advantage of IPFS lies in its scalability, especi
 
 # 1. Generate Synthetic Web Application Traces
 
-Trace Generator is forked from lookat119/GlobeTraff(https://github.com/lookat119/GlobeTraff), which is an open source from research paper:
+Trace Generator is forked from [lookat119/GlobeTraff](https://github.com/lookat119/GlobeTraff), which is an open source from research paper:
 >Katsaros K V, Xylomenos G, Polyzos G C. Globetraff: a traffic workload generator for the performance evaluation of future internet architectures[C]//2012 5th International Conference on New Technologies, Mobility and Security (NTMS). IEEE, 2012: 1-5.
-
 ```
     
 
