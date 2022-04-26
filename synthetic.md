@@ -18,56 +18,12 @@ This Generator provides a simple GUI for configuring mixed workload, so run the 
 cd JavaGUI
 java -jar dist/JavaGUI.jar
 ```
-Generated trace files will be output to `JavaGUI/data/`
-## on server:
+Generated trace files will be output to `JavaGUI/data/`, and look like `docs.all` and `workload.all`.
 
-```
-cd httpfs
-go run server.go
-```
+Next, we will make use of the benchmark tools to test the performance of IPFS and HTTP.
+# 2. Test HTTP
 
-## on client:
-upload file:
-````
-cd httpfs
-go run client.go -c upload -n 100 -s 262144 -fn <filenames> -h <server ip>
-````
+## 2.1 Run Server
 
-the file 'filename' specified will store all the file's names we just uploaded.
 
-download file:
-```
-cd httpfs
-go run client.go -c download -fn filenames -h (server ip)
-```
 
-after each round, run "./ini.sh" to clean memory and the temporary files
-
-# ipfs-none-resolve
-## on provider:
-````
-cd local-node
-./main -c upload -n 100 -s 262144 -cid cids
-./main -c daemon
-````
-copy "cids" to client local-node directory
-
-## on client:
-````
-./main -c downloads -cid cids
-````
-
-# ipfs-resolve
-## on provider:
-````
-cd local-node
-./main -c upload -n 100 -s 262144 -cid cids
-./main -c daemon
-````
-copy "cids" to client local-node directory
-
-store provider's peer identity in file "neighbours"
-## on client:
-````
-./main -c downloads -cid cids -np neighbours
-````
