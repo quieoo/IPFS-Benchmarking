@@ -23,7 +23,7 @@ Generated trace files will be output to `JavaGUI/data/`, and look like `docs.all
 Next, we will make use of the benchmark tools to test the performance of IPFS and HTTP.
 
 We implement a many-to-many architecture, so on each server or client run the instructions we give below.
-![Alt](sync_architecture.png)
+![architecture](https://github.com/quieoo/IPFS-Benchmarking/blob/main/sync_architecture.png)
 
 # 2. Test HTTP
 
