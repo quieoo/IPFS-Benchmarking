@@ -7,9 +7,15 @@ We try to demonstrate that the advantage of IPFS lies in its scalability, especi
 
 Trace Generator is forked from [lookat119/GlobeTraff](https://github.com/lookat119/GlobeTraff), which is an open source from research paper:
 >Katsaros K V, Xylomenos G, Polyzos G C. Globetraff: a traffic workload generator for the performance evaluation of future internet architectures[C]//2012 5th International Conference on New Technologies, Mobility and Security (NTMS). IEEE, 2012: 1-5.
-```
-    
 
+```
+cd IPFS-Benchmarking/traces/GlobeTraff/
+./setup
+```
+This Generator provides a simple GUI for configuring mixed workload, so run the GUI generator, and generate trace files we need.
+```
+cd JavaGUI
+java -jar dist/JavaGUI.jar
 ```
 
 ## on server:
