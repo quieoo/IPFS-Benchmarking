@@ -3,8 +3,16 @@ This is a comprehensive experiment on IPFS and HTTP.
 We try to demonstrate that the advantage of IPFS lies in its scalability, especially on a global network scale, when the network distance between the client and the server are large.
 
 
->one example of uploading and download 100 files with size of 256KB
-# http
+# 1. Generate Synthetic Web Application Traces
+
+Trace Generator is forked from lookat119/GlobeTraff(https://github.com/lookat119/GlobeTraff), which is an open source from research paper:
+>Katsaros K V, Xylomenos G, Polyzos G C. Globetraff: a traffic workload generator for the performance evaluation of future internet architectures[C]//2012 5th International Conference on New Technologies, Mobility and Security (NTMS). IEEE, 2012: 1-5.
+
+```
+    
+
+```
+
 ## on server:
 
 ```
