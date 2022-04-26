@@ -18,7 +18,7 @@ This Generator provides a simple GUI for configuring mixed workload, so run the 
 cd JavaGUI
 java -jar dist/JavaGUI.jar
 ```
-
+Generated trace files will be output to `JavaGUI/data/`
 ## on server:
 
 ```
