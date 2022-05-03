@@ -100,11 +100,16 @@ func main() {
 	var index int
 	var servers int
 	var trace_docs string
+	var fileNumber int
+	var fileSize int
 	flag.StringVar(&cmd, "c", "", "operation type\n"+
-		"traceUpload: generate trace files\n")
+		"traceUpload: generate trace files\n"+
+		"upload: generate file with specified file number and file size\n")
 	flag.StringVar(&trace_docs, "f", "", "file indicates the path of doc file of generated trace")
 	flag.IntVar(&index, "i", 0, "given each server has a part of entire workload, index indicates current server own the i-th part of data. Index starts from 0.")
 	flag.IntVar(&servers, "s", 1, "servers indicates the total number of servers")
+	flag.IntVar(&fileNumber, "n", 1, "file number used for upload cmd")
+	flag.IntVar(&fileSize, "size", 256, "file size used for upload cmd")
 	flag.Parse()
 
 	if cmd == "traceUpload" {
@@ -154,6 +159,33 @@ func main() {
 			}
 
 		}
+	} else if cmd == "upload" {
+		fn, _ := os.Create("filenames")
+		fmt.Printf("Uploading files with size %d B\n", fileSize)
+
+		for i := 0; i < fileNumber; i++ {
+			if i%100 == 0 {
+				fmt.Printf("uploading %d %d \n", i, fileNumber)
+			}
+			if i%servers == index {
+				name := strconv.Itoa(fileSize) + "-" + strconv.Itoa(i)
+				size := fileSize
+				content := RanDomContent(size, STD)
+				err := ioutil.WriteFile("./"+filePath+"/"+name, []byte(content), 0666)
+				if err != nil {
+					fmt.Println("failed to generate file: ", err.Error())
+					return
+				}
+
+				_, err = io.WriteString(fn, name+"\n")
+				if err != nil {
+					fmt.Println("failed to store filename: ", err.Error())
+					return
+				}
+			}
+		}
+		fmt.Printf("finished upload\n")
+		fn.Close()
 	}
 	http.HandleFunc("/upload", uploadHandler)
 
