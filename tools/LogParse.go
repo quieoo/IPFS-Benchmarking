@@ -12,8 +12,8 @@ import (
 var timeLayoutStr = "2006-01-02 15:04:05"
 
 func main() {
-	filename := "PL_IPFS_CloserPeers_2/PLAMG"
-	startTime, _ := time.Parse(timeLayoutStr, "2022-04-23 17:00:14.00")
+	filename := "PL_HTTP_CloserPeers_2/PLAMG"
+	startTime, _ := time.Parse(timeLayoutStr, "2022-04-24 17:00:00.00")
 
 	var throughputs []float64
 	var reqps []float64

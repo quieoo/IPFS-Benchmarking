@@ -12,11 +12,12 @@ import (
 
 // some global flag
 
-var CMD_CloseBackProvide = true
+var CMD_CloseBackProvide = false
 var CMD_CloseLANDHT = false
 var CMD_CloseDHTRefresh = false
 var CMD_CloseAddProvide = false
-var CMD_ProvideFirst = true
+var CMD_ProvideFirst = false
+var CMD_ProvideEach = false
 var CMD_EnableMetrics = false
 var CMD_StallAfterUpload = false
 var CMD_FastSync = false
@@ -478,4 +479,10 @@ func StartBackReport() {
 			provided = 0
 		}
 	}()
+}
+
+func StandardOutput(function string, t metrics.Timer, filesize int) string {
+	throughput := float64(filesize) / 1024 / 1024 / (t.Mean() / 1000000000)
+	return fmt.Sprintf("%f %f %f\n", throughput, t.Mean()/1000000, t.Percentile(float64(t.Count())*0.99)/MS)
+	// return fmt.Sprintf("%s: %d files, average latency: %f ms, 0.99P latency: %f ms\n", function, t.Count(), t.Mean()/MS, t.Percentile(float64(t.Count())*0.99)/MS)
 }

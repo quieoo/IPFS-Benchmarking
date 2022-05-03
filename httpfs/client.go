@@ -122,8 +122,10 @@ func createDirIfNotExist(path string) {
 	}
 }
 
-func standardOutput(function string, t metrics.Timer) string {
-	return fmt.Sprintf("%s: %d files, average latency: %f ms, 0.99P latency: %f ms\n", function, t.Count(), t.Mean()/MS, t.Percentile(float64(t.Count())*0.99)/MS)
+func standardOutput(function string, t metrics.Timer, filesize int) string {
+	throughput := float64(filesize) / 1024 / 1024 / (t.Mean() / 1000000000)
+	return fmt.Sprintf("%f %f %f\n", throughput, t.Mean()/1000000, t.Percentile(float64(t.Count())*0.99)/MS)
+	// return fmt.Sprintf("%s: %d files, average latency: %f ms, 0.99P latency: %f ms\n", function, t.Count(), t.Mean()/MS, t.Percentile(float64(t.Count())*0.99)/MS)
 }
 
 func Upload(filenames string, filesize int, filenumber int, host string, uploadTimer metrics.Timer) {
@@ -133,6 +135,9 @@ func Upload(filenames string, filesize int, filenumber int, host string, uploadT
 	createDirIfNotExist("./temp")
 
 	for i := 0; i < filenumber; i++ {
+		if i%100 == 0 {
+			fmt.Printf("uplaoding %d\n", i)
+		}
 		//create temporary file
 		name := fmt.Sprintf("%d-%d", filesize, i)
 		subs := NewLenChars(filesize, StdChars)
@@ -185,7 +190,7 @@ func Upload(filenames string, filesize int, filenumber int, host string, uploadT
 	}
 
 	//output metrics
-	fmt.Printf(standardOutput("http-upload", uploadTimer))
+	fmt.Printf(standardOutput("http-upload", uploadTimer, filesize))
 }
 
 func Download(filenames string, downloadfilepath string, concurrentGet int, host string, downloadTimer metrics.Timer) {
@@ -225,7 +230,12 @@ func Download(filenames string, downloadfilepath string, concurrentGet int, host
 		go func(theOrder int) {
 			defer wg.Done()
 			for j := 0; j < len(allFileName[theOrder]); j++ {
+				if j%10 == 0 {
+					fmt.Printf("worker-%d downloaded %d\n", theOrder, j)
+				}
 				toRequest := allFileName[theOrder][j]
+				fileSizeStr := strings.Split(toRequest, "-")[0]
+				fileSize, _ := strconv.Atoi(fileSizeStr)
 
 				downloadstrat := time.Now()
 				url := "http://" + host + ":8080/files/" + toRequest
@@ -249,11 +259,11 @@ func Download(filenames string, downloadfilepath string, concurrentGet int, host
 
 				if err != nil {
 					fmt.Printf("thread %d downloading stall caused by %s", theOrder, err.Error())
-					fmt.Printf(standardOutput("http-download", downloadTimer))
+					fmt.Printf(standardOutput("http-download", downloadTimer, fileSize))
 					return
 				} else if j == len(allFileName[theOrder])-1 {
-					fmt.Printf("thread %d downloading stall caused by havingfilesystem:https://docs.google.com/persistent/docs/documents/1HT8zjCAQULYnfpc_EahYXJ0MRoEIW53cR_zucqMB7wU/image/PLACEHOLDER_1e1273deb9e66546_0 downloaded all needed files.\n", theOrder)
-					fmt.Printf(standardOutput("http-download", downloadTimer))
+					//fmt.Printf("thread %d downloading stall caused by havingfilesystem:https://docs.google.com/persistent/docs/documents/1HT8zjCAQULYnfpc_EahYXJ0MRoEIW53cR_zucqMB7wU/image/PLACEHOLDER_1e1273deb9e66546_0 downloaded all needed files.\n", theOrder)
+					fmt.Printf(standardOutput("http-download", downloadTimer, fileSize))
 					return
 				}
 			}

@@ -36,6 +36,7 @@ import (
 	"syscall"
 	"time"
 
+	gometrcs "github.com/rcrowley/go-metrics"
 	"math/rand"
 )
 
@@ -190,6 +191,9 @@ func getUnixfsNode(path string) (files.Node, error) {
 // NOTE: I modified function here adding a chunker para.
 func UploadFile(file string, ctx context.Context, ipfs icore.CoreAPI, chunker string) (icorepath.Resolved, error) {
 	defer func() {
+		if !metrics.CMD_EnableMetrics {
+			return
+		}
 		metrics.AddTimer.Update(metrics.AddDura)
 		metrics.Provide.Update(metrics.ProvideDura)
 		metrics.Persist.Update(metrics.PersistDura)
@@ -228,53 +232,63 @@ func UploadFile(file string, ctx context.Context, ipfs icore.CoreAPI, chunker st
 }
 
 // NOTE: I modified the function for adding a para named chunker.
-func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, cids string, redun int, chunker string) {
+func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, cids string, redun int, chunker string, reGenerate bool) {
 	cidFile, _ := os.Create(cids)
 	fmt.Printf("Uploading files with size %d B\n", size)
 	coreNumber := cores
 	stallchan := make(chan int)
 	sendFunc := func(i int) {
 		tempDir := fmt.Sprintf("./temp%d", i)
-		//mkdir temp dir for temp files
-		err := os.MkdirAll(tempDir, os.ModePerm)
-		if err != nil {
-			fmt.Println(err)
-			stallchan <- i
-			return
-		}
-
-		//create temp files
-		for j := 0; j < number/coreNumber; j++ {
-			var subs string
-			subs = NewLenChars(size, StdChars)
-
-			// if redundancy rate is set, first upload files: [:redun/100*size]
-			if redun > 0 && redun <= 100 {
-				rsubs := subs[:redun*size/100]
-				tempfile := tempDir + "/temp"
-				err := ioutil.WriteFile(tempfile, []byte(rsubs), 0666)
-				if err != nil {
-					fmt.Println(err.Error())
-					stallchan <- i
-					return
-				}
-				start := time.Now()
-				// NOTE: I added a chunker parameter.
-				cid, err := UploadFile(tempfile, ctx, ipfs, chunker)
-				if err != nil {
-					fmt.Println(err.Error())
-					stallchan <- i
-					return
-				}
-				fmt.Printf("%s sub-file %f ms\n", cid.Cid(), time.Now().Sub(start).Seconds()*1000)
-			}
-
-			inputpath := tempDir + "/" + subs[:10]
-			err = ioutil.WriteFile(inputpath, []byte(subs), 0666)
+		if reGenerate {
+			//remove old files
+			err := os.RemoveAll(tempDir)
 			if err != nil {
 				fmt.Println(err.Error())
 				stallchan <- i
 				return
+			}
+
+			//mkdir temp dir for temp files
+			err = os.MkdirAll(tempDir, os.ModePerm)
+			if err != nil {
+				fmt.Println(err)
+				stallchan <- i
+				return
+			}
+
+			//create new temp files
+			for j := 0; j < number/coreNumber; j++ {
+				var subs string
+				subs = NewLenChars(size, StdChars)
+
+				// if redundancy rate is set, first upload files: [:redun/100*size]
+				if redun > 0 && redun <= 100 {
+					rsubs := subs[:redun*size/100]
+					tempfile := tempDir + "/temp"
+					err := ioutil.WriteFile(tempfile, []byte(rsubs), 0666)
+					if err != nil {
+						fmt.Println(err.Error())
+						stallchan <- i
+						return
+					}
+					start := time.Now()
+					// NOTE: I added a chunker parameter.
+					cid, err := UploadFile(tempfile, ctx, ipfs, chunker)
+					if err != nil {
+						fmt.Println(err.Error())
+						stallchan <- i
+						return
+					}
+					fmt.Printf("%s sub-file %f ms\n", cid.Cid(), time.Now().Sub(start).Seconds()*1000)
+				}
+
+				inputpath := tempDir + "/" + subs[:10]
+				err = ioutil.WriteFile(inputpath, []byte(subs), 0666)
+				if err != nil {
+					fmt.Println(err.Error())
+					stallchan <- i
+					return
+				}
 			}
 		}
 		// if redundancy rate is set, we clear the metrics before real uploads
@@ -292,9 +306,21 @@ func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, ci
 		for _, f := range tempfiles {
 			tempFile := tempDir + "/" + f.Name()
 			start := time.Now()
+			//add file to ipfs local node
 			cid, err := UploadFile(tempFile, ctx, ipfs, chunker)
-			if metrics.CMD_ProvideFirst && firstupload {
-				firstupload = false
+
+			//decide whether to provide this file
+			provide := false
+			if metrics.CMD_ProvideEach {
+				provide = true
+			} else {
+				if metrics.CMD_ProvideFirst && firstupload {
+					provide = true
+					firstupload = false
+				}
+			}
+			// do provide
+			if provide {
 				providestart := time.Now()
 				err := ipfs.Dht().Provide(ctx, cid)
 				if err != nil {
@@ -302,7 +328,9 @@ func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, ci
 					stallchan <- i
 					return
 				}
-				metrics.Provide.UpdateSince(providestart)
+				if metrics.CMD_EnableMetrics {
+					metrics.Provide.UpdateSince(providestart)
+				}
 			}
 
 			if err != nil {
@@ -323,14 +351,6 @@ func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, ci
 				stallchan <- i
 				return
 			}
-		}
-
-		//remove temp dir
-		err = os.RemoveAll(tempDir)
-		if err != nil {
-			fmt.Println(err.Error())
-			stallchan <- i
-			return
 		}
 
 		//finish
@@ -357,11 +377,14 @@ func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, ci
 }
 
 func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bool, np string, concurrentGet int) {
-	//logging.SetLogLevel("dht","debug")
+	//peers to remove after each get
 	neighbours, err := LocalNeighbour(np)
 	if err != nil || len(neighbours) == 0 {
 		fmt.Printf("no neighbours file specified, will not disconnect any neighbours after geting\n")
 	}
+
+	//known peers
+	AddNeighbour(ipfs, ctx)
 
 	//open cid file
 	file, err := os.Open(cids)
@@ -378,15 +401,6 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 		fmt.Println(err)
 		return
 	}
-
-	defer func() {
-		//finish downloading, remove temp dir
-		err = os.RemoveAll(tempDir)
-		if err != nil {
-			fmt.Println(err.Error())
-		}
-	}()
-
 	// NOTE: I added some lines to split files' cid into several slices.
 	//  We can get all files' cids in the 2D slices **fileCid**
 	inputReader := bufio.NewReader(file)
@@ -411,14 +425,22 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 	for i := 0; i < concurrentGet; i++ {
 		go func(theOrder int) {
 			defer wg.Done()
-
+			downTimer := gometrcs.NewTimer()
+			fileSize := int64(0)
 			for j := 0; j < len(fileCid[theOrder]); j++ {
 				cid := fileCid[theOrder][j]
 				p := icorepath.New(cid)
 				start := time.Now()
-				metrics.BDMonitor.GetStartTime = start
+				if metrics.CMD_EnableMetrics {
+					metrics.BDMonitor.GetStartTime = start
+				}
 				rootNode, err := ipfs.Unixfs().Get(ctx, p)
-				metrics.GetNode.UpdateSince(start)
+				if fileSize == 0 {
+					fileSize, _ = rootNode.Size()
+				}
+				if metrics.CMD_EnableMetrics {
+					metrics.GetNode.UpdateSince(start)
+				}
 				startWrite := time.Now()
 				if err != nil {
 					panic(fmt.Errorf("could not get file with CID: %s", err))
@@ -427,12 +449,15 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 				if err != nil {
 					panic(fmt.Errorf("could not write out the fetched CID: %s", err))
 				}
-				metrics.WriteTo.UpdateSince(startWrite)
-				metrics.BDMonitor.GetFinishTime = time.Now()
-				//metrics.Output_Get_SingleFile()
-				//metrics.BDMonitor = metrics.Newmonitor()
-				metrics.CollectMonitor()
-				metrics.FPMonitor.CollectFPMonitor()
+				if metrics.CMD_EnableMetrics {
+					metrics.WriteTo.UpdateSince(startWrite)
+					metrics.BDMonitor.GetFinishTime = time.Now()
+					//metrics.Output_Get_SingleFile()
+					//metrics.BDMonitor = metrics.Newmonitor()
+					metrics.CollectMonitor()
+					metrics.FPMonitor.CollectFPMonitor()
+				}
+				downTimer.UpdateSince(start)
 
 				fmt.Printf("Thread %d get file %s %f\n", theOrder, cid, time.Now().Sub(start).Seconds()*1000)
 				//provide after get
@@ -444,9 +469,11 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 					}
 				}
 
+				// DisconnectAllPeers(ctx, ipfs)
 				//remove neighbours
 				if len(neighbours) != 0 {
 					for _, n := range neighbours {
+						//fmt.Printf("try to disconnect from %s\n", n)
 						err := DisconnectToPeers(ctx, ipfs, n)
 						if err != nil {
 							fmt.Printf("failed to disconnect: %v\n", err)
@@ -454,9 +481,11 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 					}
 				}
 			}
+			fmt.Printf("worker-%d %s", theOrder, metrics.StandardOutput("ipfs-download", downTimer, int(fileSize)))
 		}(i)
 	}
 	wg.Wait()
+
 }
 
 func TraceUpload(index int, servers int, trace_docs string, chunker string, ipfs icore.CoreAPI, ctx context.Context) {
@@ -548,7 +577,7 @@ func TraceUpload(index int, servers int, trace_docs string, chunker string, ipfs
 
 }
 
-func TraceDownload(traceFile string, traceDownload_randomRequest bool, ipfs icore.CoreAPI, ctx context.Context, addNeighbourPath string, pag bool, downloadNumber int) {
+func TraceDownload(traceFile string, traceDownload_randomRequest bool, ipfs icore.CoreAPI, ctx context.Context, pag bool, downloadNumber int) {
 	metrics.CMD_CloseBackProvide = false
 
 	//use different metrics, because monitor/FPMonitor those are too detailed and expensive, here we no longer need to track them
@@ -560,33 +589,7 @@ func TraceDownload(traceFile string, traceDownload_randomRequest bool, ipfs icor
 		fmt.Printf("failed to open trace file: %s, due to %s\n", traceFile, err.Error())
 		return
 	} else {
-		//manually add neighbours
-		addnf, err := os.Open(addNeighbourPath)
-		if err == nil {
-			fmt.Printf("Adding Neighbours:\n")
-			scanner := bufio.NewScanner(addnf)
-			for scanner.Scan() {
-				line := scanner.Text()
-				fmt.Printf("    %s\n", line)
-				ma, err := multiaddr.NewMultiaddr(line)
-				if err != nil {
-					fmt.Printf("    failed to parse multiAddress, due to %s\n", err.Error())
-				} else {
-
-					addrs, err := peer.AddrInfoFromP2pAddr(ma)
-					if err != nil {
-						fmt.Printf("    failed to transform multiaddr to addrInfo, due to %s\n", err.Error())
-					} else {
-						err := ipfs.Swarm().Connect(ctx, *addrs)
-						if err != nil {
-							fmt.Printf("    failed to swarm connect to peer, due to %s\n", err.Error())
-						}
-					}
-				}
-			}
-
-			addnf.Close()
-		}
+		AddNeighbour(ipfs, ctx)
 
 		// create download directory
 		downloadfilepath := "./downloaded"
@@ -694,8 +697,9 @@ func main() {
 	flag.BoolVar(&(metrics.CMD_CloseBackProvide), "closebackprovide", false, "wether to close background provider")
 	flag.BoolVar(&(metrics.CMD_CloseLANDHT), "closelan", false, "whether to close lan dht")
 	flag.BoolVar(&(metrics.CMD_CloseDHTRefresh), "closedhtrefresh", false, "whether to close dht refresh")
-	flag.BoolVar(&(metrics.CMD_EnableMetrics), "enablemetrics", true, "whether to enable metrics")
-	flag.BoolVar(&(metrics.CMD_ProvideFirst), "providefirst", false, "manually provide file after upload")
+	flag.BoolVar(&(metrics.CMD_EnableMetrics), "enablemetrics", false, "whether to enable metrics")
+	flag.BoolVar(&(metrics.CMD_ProvideFirst), "providefirst", false, "manually provide first file after upload")
+	flag.BoolVar(&(metrics.CMD_ProvideEach), "provideeach", false, "manually provide every files after upload")
 	flag.BoolVar(&(metrics.CMD_StallAfterUpload), "stallafterupload", false, "stall after upload")
 
 	var cmd string
@@ -706,7 +710,6 @@ func main() {
 	var cidfile string
 	var provideAfterGet bool
 	var rmNeighbourPath string
-	var addNeighbourPath string
 
 	var ipfsPath string
 	var redun_rate int
@@ -736,7 +739,6 @@ func main() {
 	flag.BoolVar(&provideAfterGet, "pag", false, "whether to provide file after get it")
 
 	flag.StringVar(&rmNeighbourPath, "rmn", "remove_neighbours", "the path of file that records neighbours id, neighbours will be removed after getting file")
-	flag.StringVar(&addNeighbourPath, "addn", "add_neighbours", "the path of file that records neighbours id, neighbours will be added before getting files")
 
 	flag.StringVar(&ipfsPath, "ipfs", "./go-ipfs/cmd/ipfs/ipfs", "where go-ipfs exec exists")
 	flag.StringVar(&seelogs, "seelogs", "", "configure the specified log level to 'debug', logs connect with'-', such as 'dht-bitswap-blockservice'")
@@ -763,6 +765,9 @@ func main() {
 		"But, as tested, when eac=0, some files cannot be found. eac should not be smaller than 3)")
 	flag.IntVar(&downloadNumber, "dn", 0, "")
 
+	var ReGenerateFile bool
+	flag.BoolVar(&ReGenerateFile, "regenerate", false, "whether to regenerate random-content files for uploading. If not flagged, the upload will read local ")
+
 	flag.Parse()
 
 	// NOTE: check the concurrentGet.
@@ -771,11 +776,13 @@ func main() {
 		return
 	}
 	// file size
-	filesize, _ = strconv.Atoi(sizestring[:len(sizestring)-1])
+	base, _ := strconv.Atoi(sizestring[:len(sizestring)-1])
 	if strings.HasSuffix(sizestring, "k") {
-		filesize = filesize * 1024
+		filesize = base * 1024
 	} else if strings.HasSuffix(sizestring, "m") {
 		filesize = filesize * 1024 * 1024
+	} else {
+		filesize, _ = strconv.Atoi(sizestring[:len(sizestring)])
 	}
 
 	//metrics
@@ -811,7 +818,7 @@ func main() {
 
 		defer cancel()
 		// NOTE: I modified the function for adding a ** chunker ** .
-		Upload(filesize, filenumber, parallel, ctx, ipfs, cidfile, redun_rate, chunker)
+		Upload(filesize, filenumber, parallel, ctx, ipfs, cidfile, redun_rate, chunker, ReGenerateFile)
 		return
 	}
 	if cmd == "downloads" {
@@ -856,7 +863,7 @@ func main() {
 	if cmd == "traceDownload" {
 		ctx, ipfs, cancel := Ini()
 		defer cancel()
-		TraceDownload(traceFile, traceDownload_randomRequest, ipfs, ctx, addNeighbourPath, provideAfterGet, downloadNumber)
+		TraceDownload(traceFile, traceDownload_randomRequest, ipfs, ctx, provideAfterGet, downloadNumber)
 		return
 	}
 	_, _, cancel := Ini()
@@ -909,22 +916,22 @@ func LocalNeighbour(np string) ([]string, error) {
 	if err != nil {
 		return neighbours, fmt.Errorf("failed to open neighbour file: %v\n", err)
 	}
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
 
-		}
-	}(file)
-	bf := bufio.NewReader(file)
-	for {
-		s, _, err := bf.ReadLine()
-		if err != nil {
-			fmt.Println(err.Error())
-			return neighbours, nil
-		}
-		neighbours = append(neighbours, string(s))
+	scanner := bufio.NewScanner(file)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		neighbours = append(neighbours, line)
 	}
+	if err := scanner.Err(); err != nil {
+		fmt.Printf("Cannot scanner text file: %s, err: [%v]\n", file.Name(), err)
+		return nil, err
+	}
+	file.Close()
+	fmt.Printf("Load Neighbours to remove: %v\n", neighbours)
+	return neighbours, nil
 }
+
 func DisconnectToPeers(ctx context.Context, ipfs icore.CoreAPI, remove string) error {
 	//peerInfos := make(map[peer.ID]*peerstore.PeerInfo, len(peers))
 	//var peerInfos map[peer.ID]*peerstore.PeerInfo
@@ -946,7 +953,7 @@ func DisconnectToPeers(ctx context.Context, ipfs icore.CoreAPI, remove string) e
 		if err != nil {
 			fmt.Println(err.Error())
 		}
-		// fmt.Printf("disconnect from %v\n", addrs)
+		//fmt.Printf("disconnect from %v\n", addrs)
 
 		for _, addr := range addrs {
 			err = ipfs.Swarm().Disconnect(ctx, addr)
@@ -956,8 +963,10 @@ func DisconnectToPeers(ctx context.Context, ipfs icore.CoreAPI, remove string) e
 		}
 		break
 	}
+
 	return nil
 }
+
 func Shuffle(vals []string) []string {
 	interfaces, _ := net.Interfaces()
 	mac := int64(0)
@@ -979,4 +988,35 @@ func Shuffle(vals []string) []string {
 }
 func BytesToInt64(buf []byte) int64 {
 	return int64(binary.BigEndian.Uint64(buf))
+}
+
+func AddNeighbour(ipfs icore.CoreAPI, ctx context.Context) {
+	//manually add neighbours
+	addNeighbourPath := "add_neighbours"
+	addnf, err := os.Open(addNeighbourPath)
+	if err == nil {
+		fmt.Printf("Adding Neighbours:\n")
+		scanner := bufio.NewScanner(addnf)
+		for scanner.Scan() {
+			line := scanner.Text()
+			fmt.Printf("    %s\n", line)
+			ma, err := multiaddr.NewMultiaddr(line)
+			if err != nil {
+				fmt.Printf("    failed to parse multiAddress, due to %s\n", err.Error())
+			} else {
+
+				addrs, err := peer.AddrInfoFromP2pAddr(ma)
+				if err != nil {
+					fmt.Printf("    failed to transform multiaddr to addrInfo, due to %s\n", err.Error())
+				} else {
+					err := ipfs.Swarm().Connect(ctx, *addrs)
+					if err != nil {
+						fmt.Printf("    failed to swarm connect to peer, due to %s\n", err.Error())
+					}
+				}
+			}
+		}
+
+		addnf.Close()
+	}
 }

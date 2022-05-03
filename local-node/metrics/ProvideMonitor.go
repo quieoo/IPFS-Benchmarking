@@ -29,7 +29,7 @@ func Output_ProvideMonitor() {
 		return
 	}
 
-	fmt.Println("--------------------------Provide----------------------")
+	fmt.Println("--------------------------SimpleProvider----------------------")
 	fmt.Printf("ProvideLatency: %d ,     avg- %f ms, 0.9p- %f ms \n", ProvideTime.Count(), ProvideTime.Mean()/MS, ProvideTime.Percentile(float64(ProvideTime.Count())*0.9)/MS)
 	fmt.Printf("ProvideThroughput: %f /min\n", float64(SuccessfullyProvide)/(time.Now().Sub(StartBackProvideTime).Seconds()/60))
 }
