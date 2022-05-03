@@ -189,7 +189,7 @@ func getUnixfsNode(path string) (files.Node, error) {
 }
 
 // NOTE: I modified function here adding a chunker para.
-func UploadFile(file string, ctx context.Context, ipfs icore.CoreAPI, chunker string) (icorepath.Resolved, error) {
+func UploadFile(file string, ctx context.Context, ipfs icore.CoreAPI, chunker string, ProvideThrough bool) (icorepath.Resolved, error) {
 	defer func() {
 		if !metrics.CMD_EnableMetrics {
 			return
@@ -219,6 +219,10 @@ func UploadFile(file string, ctx context.Context, ipfs icore.CoreAPI, chunker st
 	opts := []options.UnixfsAddOption{
 		options.Unixfs.Chunker(chunker),
 	}
+	if ProvideThrough {
+		opts = append(opts, options.Unixfs.ProvideThrough())
+	}
+
 	cid, err := ipfs.Unixfs().Add(ctx, somefile, opts...)
 
 	if err != nil {
@@ -272,8 +276,7 @@ func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, ci
 						return
 					}
 					start := time.Now()
-					// NOTE: I added a chunker parameter.
-					cid, err := UploadFile(tempfile, ctx, ipfs, chunker)
+					cid, err := UploadFile(tempfile, ctx, ipfs, chunker, false)
 					if err != nil {
 						fmt.Println(err.Error())
 						stallchan <- i
@@ -307,7 +310,6 @@ func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, ci
 			tempFile := tempDir + "/" + f.Name()
 			start := time.Now()
 			//add file to ipfs local node
-			cid, err := UploadFile(tempFile, ctx, ipfs, chunker)
 
 			//decide whether to provide this file
 			provide := false
@@ -319,20 +321,7 @@ func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, ci
 					firstupload = false
 				}
 			}
-			// do provide
-			if provide {
-				providestart := time.Now()
-				err := ipfs.Dht().Provide(ctx, cid)
-				if err != nil {
-					fmt.Printf("failed to provide file: %v\n", err.Error())
-					stallchan <- i
-					return
-				}
-				if metrics.CMD_EnableMetrics {
-					metrics.Provide.UpdateSince(providestart)
-				}
-			}
-
+			cid, err := UploadFile(tempFile, ctx, ipfs, chunker, provide)
 			if err != nil {
 				fmt.Println(err.Error())
 				stallchan <- i
@@ -551,7 +540,7 @@ func TraceUpload(index int, servers int, trace_docs string, chunker string, ipfs
 				//fmt.Printf("WriteFile %f\n", time.Now().Sub(s).Seconds())
 
 				// put to ipfs store and background provide
-				cid, err := UploadFile(inputpath, ctx, ipfs, chunker)
+				cid, err := UploadFile(inputpath, ctx, ipfs, chunker, false)
 				// record file cid
 				outline := fmt.Sprintf("%d\t%s\n", names[i], strings.Split(cid.String(), "/")[2])
 				_, err = io.WriteString(cidFile, outline)
@@ -699,7 +688,7 @@ func main() {
 	flag.BoolVar(&(metrics.CMD_CloseDHTRefresh), "closedhtrefresh", false, "whether to close dht refresh")
 	flag.BoolVar(&(metrics.CMD_EnableMetrics), "enablemetrics", false, "whether to enable metrics")
 	flag.BoolVar(&(metrics.CMD_ProvideFirst), "providefirst", false, "manually provide first file after upload")
-	flag.BoolVar(&(metrics.CMD_ProvideEach), "provideeach", false, "manually provide every files after upload")
+	flag.BoolVar(&(metrics.CMD_ProvideEach), "provideeach", false, "manually provide(Provide_Through, the default IPFS Provide uses a Provide_Back strategy) every files after upload")
 	flag.BoolVar(&(metrics.CMD_StallAfterUpload), "stallafterupload", false, "stall after upload")
 
 	var cmd string
