@@ -6,6 +6,7 @@ git clone --recurse-submodules  https://github.com/quieoo/IPFS-Benchmarking.git
 ## Introduction
 https://docs.google.com/presentation/d/1s5l4WRMSnFcUQeVurcPb__uX5Xu3EIS2/edit?usp=sharing&ouid=118097429037267342639&rtpof=true&sd=true
 
+https://docs.google.com/presentation/d/1tXsiOW44VdqnsIsQXgQTKqLaTkdCun1rdX_NAQdCsPo/edit?usp=sharing
 
 ## Local Benchmarks
 https://docs.google.com/presentation/d/1H4vctMWIE4uAGj-mv1FC_5b6ooKbmSUXaIexp2zyeio/edit?usp=sharing
