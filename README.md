@@ -8,7 +8,5 @@ https://docs.google.com/presentation/d/1s5l4WRMSnFcUQeVurcPb__uX5Xu3EIS2/edit?us
 
 https://docs.google.com/presentation/d/1tXsiOW44VdqnsIsQXgQTKqLaTkdCun1rdX_NAQdCsPo/edit?usp=sharing
 
-## Local Benchmarks
-https://docs.google.com/presentation/d/1H4vctMWIE4uAGj-mv1FC_5b6ooKbmSUXaIexp2zyeio/edit?usp=sharing
-
+## Benchmarks
 https://docs.google.com/spreadsheets/d/1eWACmCmwxycyGn4ZN-n2Jy_QuUrr96-smCDJ4LN6Unc/edit?usp=sharing
