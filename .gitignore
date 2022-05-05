@@ -63,3 +63,13 @@ copy.sh
 /tools/PL_IPFS_CloserPeers_1/PLSG
 /tools/PL_IPFS_CloserPeers_2/PLSG
 /tools/PLSG
+/local-node/remove_neighbours
+/tools/add_neighbours_s2
+/img.png
+/tools/PL_HTTP_CloserPeers_2/PL.tar.gz
+/tools/PL_HTTP_CloserPeers_2/PLAMG
+/tools/PL_HTTP_CloserPeers_2/PLHK
+/tools/PL_HTTP_CloserPeers_2/PLIN
+/tools/PL_HTTP_CloserPeers_2/PLJP
+/tools/PL_HTTP_CloserPeers_2/PLSG
+/httpfs/root@47.254.170.165
