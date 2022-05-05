@@ -29,4 +29,5 @@ replace (
 	github.com/ipfs/interface-go-ipfs-core => ./interface-go-ipfs-core/
 	github.com/libp2p/go-libp2p-kad-dht => ./go-libp2p-kad-dht/
 	metrics => ./metrics/
+	github.com/ipfs/go-ipfs-chunker => ./go-ipfs-chunker/
 )

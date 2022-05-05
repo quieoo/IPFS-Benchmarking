@@ -40,3 +40,6 @@
 [submodule "local-node/interface-go-ipfs-core"]
 	path = local-node/interface-go-ipfs-core
 	url = https://github.com/quieoo/interface-go-ipfs-core.git
+[submodule "local-node/go-ipfs-chunker"]
+	path = local-node/go-ipfs-chunker
+	url = https://github.com/quieoo/go-ipfs-chunker.git
