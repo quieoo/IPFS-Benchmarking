@@ -25,6 +25,8 @@ var ProviderWorker = 8
 var CMD_EarlyAbort = false
 var EarlyAbortCheck = 5
 
+var BlockSizeLimit = 1 * 1024 * 1024
+
 var TimerPin []metrics.Timer
 var pinNumber = 2
 var TimePin time.Time

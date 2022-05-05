@@ -757,6 +757,8 @@ func main() {
 	var ReGenerateFile bool
 	flag.BoolVar(&ReGenerateFile, "regenerate", false, "whether to regenerate random-content files for uploading. If not flagged, the upload will read local ")
 
+	flag.IntVar(&(metrics.BlockSizeLimit), "blocksizelimit", 1024*1024, "chunk size")
+
 	flag.Parse()
 
 	// NOTE: check the concurrentGet.
