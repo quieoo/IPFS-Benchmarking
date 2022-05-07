@@ -14,3 +14,14 @@ output
 /add_neighbours_s
 /log2
 /logr
+/cid_l
+/cid_l_16k
+/cid_r
+/cid_r_1m
+/cid_r_4m
+/cid_r_16k
+/cid_r_16m
+/cid_r_64m
+/cid_r_256k
+/cid_r_256m
+/cid_r_512k
