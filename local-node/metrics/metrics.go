@@ -30,6 +30,7 @@ var BlockSizeLimit = 1 * 1024 * 1024
 var TimerPin []metrics.Timer
 var pinNumber = 2
 var TimePin time.Time
+var Times []time.Duration
 
 // ADD Metrics
 
@@ -100,6 +101,8 @@ var DownloadedFileSize []int
 var AvgDownloadLatency metrics.Timer
 var ALL_DownloadedFileSize []int
 var ALL_AvgDownloadLatency metrics.Timer
+
+var GetBreakDownLog = false
 
 func TraceDownMetricsInit() {
 	AvgDownloadLatency = metrics.NewTimer()
@@ -249,14 +252,26 @@ func CollectMonitor() {
 	}
 	//BDMonitor.TimeStamps()
 
-	BlockServiceTime.Update(time.Duration(int64(BDMonitor.TotalFetches) * BDMonitor.AvgBlockServiceTime().Nanoseconds()))
-	RootNeighbourAskingTime.Update(BDMonitor.RootNeighbourAskingTime())
-	RootFindProviderTime.Update(BDMonitor.RootFindProviderTime())
-	RootWaitToWantTime.Update(BDMonitor.RootWaitToWantTime())
-	LeafWaitToWantTime.Update(time.Duration(int64(BDMonitor.TotalFetches-1) * BDMonitor.AvgLeafWaitToWantTime().Nanoseconds()))
-	BitswapTime.Update(time.Duration(int64(BDMonitor.TotalFetches) * BDMonitor.AvgBitswapTime().Nanoseconds()))
-	PutStoreTime.Update(time.Duration(int64(BDMonitor.TotalFetches) * BDMonitor.AvgPutToStore().Nanoseconds()))
-	VisitTime.Update(time.Duration(int64(BDMonitor.TotalFetches) * BDMonitor.AvgVisitTime().Nanoseconds()))
+	//fmt.Printf("total fetch %d\n", BDMonitor.TotalFetches)
+	bd := BDMonitor.GetBreakdown()
+	for _, t := range bd.BlockService {
+		BlockServiceTime.Update(t)
+	}
+	RootNeighbourAskingTime.Update(bd.NeighbourAsk)
+	RootFindProviderTime.Update(bd.FindProvider)
+	RootWaitToWantTime.Update(bd.RootWaitToWant)
+	for _, t := range bd.LeafWaitToWant {
+		LeafWaitToWantTime.Update(t)
+	}
+	for _, t := range bd.Bitswap {
+		BitswapTime.Update(t)
+	}
+	for _, t := range bd.PutStore {
+		PutStoreTime.Update(t)
+	}
+	for _, t := range bd.Visit {
+		VisitTime.Update(t)
+	}
 
 	realtime := BDMonitor.RealTime()
 	modeltime := BDMonitor.ModeledTime()
@@ -365,6 +380,10 @@ func OutputMetrics0() {
 	}
 	for i := 0; i < pinNumber; i++ {
 		fmt.Printf("TimerPin-%d: %d ,     avg- %f ms, 0.9p- %f ms \n", i, TimerPin[i].Count(), TimerPin[i].Mean()/MS, TimerPin[i].Percentile(float64(TimerPin[i].Count())*0.9)/MS)
+	}
+
+	for _, t := range Times {
+		fmt.Printf("%f\n", t.Seconds())
 	}
 }
 

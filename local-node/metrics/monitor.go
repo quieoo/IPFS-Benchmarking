@@ -3,6 +3,7 @@ package metrics
 import (
 	"fmt"
 	"github.com/ipfs/go-cid"
+	"sort"
 	"sync"
 	"time"
 )
@@ -264,160 +265,110 @@ func (m *Monitor) FinishVisit(c cid.Cid) {
 	}
 }
 
-func (m *Monitor) AvgBlockServiceTime() time.Duration {
+// ----------------------------------------------------------------------
+
+var TailRaio = 0.9
+var ReduceRatio = 0.4
+
+type BreakdownTimeForGet struct {
+	BlockService   []time.Duration
+	NeighbourAsk   time.Duration
+	FindProvider   time.Duration
+	RootWaitToWant time.Duration
+	LeafWaitToWant []time.Duration
+	Bitswap        []time.Duration
+	PutStore       []time.Duration
+	Visit          []time.Duration
+}
+
+// GetBreakdown get all sub-procedure time
+func (m *Monitor) GetBreakdown() BreakdownTimeForGet {
+	var result BreakdownTimeForGet
 	if !CMD_EnableMetrics {
-		return time.Duration(0)
+		return result
 	}
-	var sumTime int64
-	num := 0
+
 	m.EventList.Range(func(key, value interface{}) bool {
 		be := value.(BlockEvent)
+		rootblk := false
+		if key.(cid.Cid) == m.Root {
+			rootblk = true
+			if gotpt, ok := be.FirstGotProvider.Load(be.ReceiveFrom); ok {
+				if wantt, ok := be.FirstWantTo.Load(be.ReceiveFrom); ok {
+					if gotpt.(time.Time).Before(wantt.(time.Time)) && be.FirstFindProvider != ZeroTime && be.GetBlocksRequest != ZeroTime {
+						result.NeighbourAsk = be.FirstFindProvider.Sub(be.GetBlocksRequest)
+					}
+				}
+			}
+			if gotpt, ok := be.FirstGotProvider.Load(be.ReceiveFrom); ok {
+				if wantt, ok := be.FirstWantTo.Load(be.ReceiveFrom); ok {
+					if gotpt.(time.Time).Before(wantt.(time.Time)) && be.FirstFindProvider != ZeroTime {
+						result.FindProvider = gotpt.(time.Time).Sub(be.FirstFindProvider)
+					}
+				}
+			}
+			if gotpt, ok := be.FirstGotProvider.Load(be.ReceiveFrom); ok {
+				if wantt, ok := be.FirstWantTo.Load(be.ReceiveFrom); ok {
+					if gotpt.(time.Time).Before(wantt.(time.Time)) {
+						result.RootWaitToWant = wantt.(time.Time).Sub(gotpt.(time.Time))
+					}
+				}
+			}
+		}
+
 		if blockServ := be.BlockServiceGet; blockServ != ZeroTime {
 			if request := be.GetBlocksRequest; request != ZeroTime {
-				sumTime += request.Sub(blockServ).Nanoseconds()
-				num++
+				result.BlockService = append(result.BlockService, request.Sub(blockServ))
 			}
 		}
-		return true
-	})
-	if num != 0 {
-		return time.Duration(sumTime / int64(num))
-	}
-	return time.Duration(0)
-}
-
-func (m *Monitor) RootNeighbourAskingTime() time.Duration {
-	if !CMD_EnableMetrics {
-		return time.Duration(0)
-	}
-	if c, ok := m.EventList.Load(m.Root); ok {
-		be := c.(BlockEvent)
-		if gotpt, ok := be.FirstGotProvider.Load(be.ReceiveFrom); ok {
-			if wantt, ok := be.FirstWantTo.Load(be.ReceiveFrom); ok {
-				if gotpt.(time.Time).Before(wantt.(time.Time)) && be.FirstFindProvider != ZeroTime && be.GetBlocksRequest != ZeroTime {
-					return be.FirstFindProvider.Sub(be.GetBlocksRequest)
-				}
-			}
-		}
-	}
-	return time.Duration(0)
-}
-func (m *Monitor) RootFindProviderTime() time.Duration {
-	if !CMD_EnableMetrics {
-		return time.Duration(0)
-	}
-	if c, ok := m.EventList.Load(m.Root); ok {
-		be := c.(BlockEvent)
-		if gotpt, ok := be.FirstGotProvider.Load(be.ReceiveFrom); ok {
-			if wantt, ok := be.FirstWantTo.Load(be.ReceiveFrom); ok {
-				if gotpt.(time.Time).Before(wantt.(time.Time)) && be.FirstFindProvider != ZeroTime {
-					return gotpt.(time.Time).Sub(be.FirstFindProvider)
-				}
-			}
-		}
-	}
-	return time.Duration(0)
-}
-
-func (m *Monitor) RootWaitToWantTime() time.Duration {
-	if !CMD_EnableMetrics {
-		return time.Duration(0)
-	}
-	if c, ok := m.EventList.Load(m.Root); ok {
-		be := c.(BlockEvent)
-		if gotpt, ok := be.FirstGotProvider.Load(be.ReceiveFrom); ok {
-			if wantt, ok := be.FirstWantTo.Load(be.ReceiveFrom); ok {
-				if gotpt.(time.Time).Before(wantt.(time.Time)) {
-					return wantt.(time.Time).Sub(gotpt.(time.Time))
-				}
-			}
-		}
-	}
-	return time.Duration(0)
-}
-func (m *Monitor) AvgLeafWaitToWantTime() time.Duration {
-	if !CMD_EnableMetrics {
-		return time.Duration(0)
-	}
-	sum := time.Duration(0)
-	var num int64
-	m.EventList.Range(func(key, value interface{}) bool {
-		be := value.(BlockEvent)
-		if be.Level > 0 {
+		if !rootblk {
 			if wantt, ok := be.FirstWantTo.Load(be.ReceiveFrom); ok {
 				if be.FirstFindProvider != ZeroTime {
-					sum += wantt.(time.Time).Sub(be.GetBlocksRequest)
-					num++
+					result.LeafWaitToWant = append(result.LeafWaitToWant, wantt.(time.Time).Sub(be.GetBlocksRequest))
 				}
 			}
 		}
-		return true
-	})
-	if num == 0 {
-		return time.Duration(0)
-	}
-	return time.Duration(sum.Nanoseconds() / num)
-}
-func (m *Monitor) AvgBitswapTime() time.Duration {
-	if !CMD_EnableMetrics {
-		return time.Duration(0)
-	}
-	sum := time.Duration(0)
-	var num int64
-	m.EventList.Range(func(key, value interface{}) bool {
-		be := value.(BlockEvent)
-
 		if wantt, ok := be.FirstWantTo.Load(be.ReceiveFrom); ok {
 			if be.FirstReceive != ZeroTime {
-				sum += be.FirstReceive.Sub(wantt.(time.Time))
-				num++
-
+				result.Bitswap = append(result.Bitswap, be.FirstReceive.Sub(wantt.(time.Time)))
 			}
 		}
-		return true
-	})
-	if num == 0 {
-		return sum
-	}
-	return time.Duration(sum.Nanoseconds() / num)
-}
-func (m *Monitor) AvgPutToStore() time.Duration {
-	if !CMD_EnableMetrics {
-		return time.Duration(0)
-	}
-	sum := time.Duration(0)
-	num := 0
-	m.EventList.Range(func(key, value interface{}) bool {
-		be := value.(BlockEvent)
 		if be.FirstReceive != ZeroTime && be.FirstPutStore != ZeroTime {
-			sum += be.FirstPutStore.Sub(be.FirstReceive)
-			num++
+			result.PutStore = append(result.PutStore, be.FirstPutStore.Sub(be.FirstReceive))
 		}
-		return true
-	})
-	if num == 0 {
-		return time.Duration(0)
-	}
-	return time.Duration(sum.Nanoseconds() / int64(num))
-}
-func (m *Monitor) AvgVisitTime() time.Duration {
-	if !CMD_EnableMetrics {
-		return time.Duration(0)
-	}
-	sum := time.Duration(0)
-	var num int64
-	m.EventList.Range(func(key, value interface{}) bool {
-		be := value.(BlockEvent)
 		if be.FinishVisit != ZeroTime && be.BeginVisit != ZeroTime {
-			sum += be.FinishVisit.Sub(be.BeginVisit)
-			num++
+			result.Visit = append(result.Visit, be.FinishVisit.Sub(be.BeginVisit))
 		}
+
 		return true
 	})
-	if num == 0 {
-		return sum
+
+	return result
+}
+func GetAvgAndTail(array []time.Duration) (float64, int64) {
+	if len(array) == 0 {
+		return 0, 0
 	}
-	return time.Duration(sum.Nanoseconds() / num)
+
+	sum := int64(0)
+	//copy array
+	var ca []int64
+	for _, a := range array {
+		sum += a.Nanoseconds()
+		ca = append(ca, a.Nanoseconds())
+	}
+	avg := float64(sum) / float64(len(array))
+
+	sort.Slice(ca, func(i, j int) bool {
+		return ca[i] < ca[j]
+	})
+	tailIndex := TailRaio * float64(len(array))
+	if tailIndex < 1 {
+		tailIndex = 1
+	}
+	tail := ca[int(tailIndex)-1]
+
+	return avg, tail
 }
 
 func (m *Monitor) RealTime() time.Duration {
@@ -431,13 +382,41 @@ func (m *Monitor) ModeledTime() time.Duration {
 		return time.Duration(0)
 	}
 	var result int64
-	totalFetch := int64(m.TotalFetches)
-	result = totalFetch*m.AvgBlockServiceTime().Nanoseconds() +
-		m.RootNeighbourAskingTime().Nanoseconds() + m.RootFindProviderTime().Nanoseconds() +
-		m.RootWaitToWantTime().Nanoseconds() + (totalFetch-1)*m.AvgLeafWaitToWantTime().Nanoseconds() +
-		totalFetch*m.AvgBitswapTime().Nanoseconds() +
-		totalFetch*m.AvgPutToStore().Nanoseconds() +
-		totalFetch*m.AvgVisitTime().Nanoseconds()
+	Breakdown := m.GetBreakdown()
+	for _, t := range Breakdown.Bitswap {
+		fmt.Println(t.Seconds())
+	}
+	fmt.Println("-------------")
+	for _, t := range Breakdown.PutStore {
+		fmt.Println(t.Seconds())
+	}
+	fmt.Println("-------------")
+
+	blockServiceAVG, blockServiceTail := GetAvgAndTail(Breakdown.BlockService)
+	bitswapAVG, bitswapTail := GetAvgAndTail(Breakdown.Bitswap)
+	putStoreAVG, putStoreTail := GetAvgAndTail(Breakdown.PutStore)
+	leafWWAVG, leafWWTail := GetAvgAndTail(Breakdown.LeafWaitToWant)
+	visitAVG, visitTail := GetAvgAndTail(Breakdown.Visit)
+
+	fmt.Printf("%f %f\n", bitswapAVG/1000000, float64(bitswapTail)/1000000)
+	fmt.Printf("%f %f\n", putStoreAVG/1000000, float64(putStoreTail)/1000000)
+
+	//Root Node Time
+	result = Breakdown.NeighbourAsk.Nanoseconds() + Breakdown.FindProvider.Nanoseconds() + Breakdown.RootWaitToWant.Nanoseconds()
+	result += int64(blockServiceAVG + bitswapAVG + putStoreAVG + visitAVG)
+
+	if m.TotalFetches > 1 {
+		// Leaf Blocks Time
+		Avg := blockServiceAVG + bitswapAVG + putStoreAVG + leafWWAVG + visitAVG
+		Tail := blockServiceTail + bitswapTail + putStoreTail + leafWWTail + visitTail
+
+		TF := int64(m.TotalFetches - 1)
+		result += TF * Tail
+		if TF > 1 {
+			//reduce wait time due to early request
+			result -= TF * int64(ReduceRatio*(float64(Tail)-Avg))
+		}
+	}
 
 	return time.Duration(result)
 }

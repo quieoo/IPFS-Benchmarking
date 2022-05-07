@@ -771,7 +771,7 @@ func main() {
 	if strings.HasSuffix(sizestring, "k") {
 		filesize = base * 1024
 	} else if strings.HasSuffix(sizestring, "m") {
-		filesize = filesize * 1024 * 1024
+		filesize = base * 1024 * 1024
 	} else {
 		filesize, _ = strconv.Atoi(sizestring[:len(sizestring)])
 	}
@@ -793,6 +793,10 @@ func main() {
 		sublogs := strings.Split(seelogs, "-")
 		fmt.Println("See logs: ")
 		for _, s := range sublogs {
+			if s == "getbreakdown" {
+				metrics.GetBreakDownLog = true
+				continue
+			}
 			fmt.Println("--" + s)
 			err := logging.SetLogLevel(s, "debug")
 			if err != nil {
