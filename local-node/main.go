@@ -417,13 +417,18 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 			downTimer := gometrcs.NewTimer()
 			fileSize := int64(0)
 			for j := 0; j < len(fileCid[theOrder]); j++ {
+				ctx_time, _ := context.WithTimeout(ctx, 60*time.Second)
 				cid := fileCid[theOrder][j]
 				p := icorepath.New(cid)
 				start := time.Now()
 				if metrics.CMD_EnableMetrics {
 					metrics.BDMonitor.GetStartTime = start
 				}
-				rootNode, err := ipfs.Unixfs().Get(ctx, p)
+				rootNode, err := ipfs.Unixfs().Get(ctx_time, p)
+				if err != nil {
+					fmt.Printf("error while get %s: %s\n", cid, err.Error())
+					continue
+				}
 				if fileSize == 0 {
 					fileSize, _ = rootNode.Size()
 				}
@@ -431,12 +436,10 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 					metrics.GetNode.UpdateSince(start)
 				}
 				startWrite := time.Now()
-				if err != nil {
-					panic(fmt.Errorf("could not get file with CID: %s", err))
-				}
 				err = files.WriteTo(rootNode, tempDir+"/"+cid)
 				if err != nil {
-					panic(fmt.Errorf("could not write out the fetched CID: %s", err))
+					fmt.Printf("error while write to file %s : %s\n", cid, err.Error())
+					continue
 				}
 				if metrics.CMD_EnableMetrics {
 					metrics.WriteTo.UpdateSince(startWrite)
@@ -458,17 +461,19 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 					}
 				}
 
-				// DisconnectAllPeers(ctx, ipfs)
+				// DO NOT WORK
+				//DisconnectAllPeers(ctx, ipfs)
 				//remove neighbours
-				if len(neighbours) != 0 {
-					for _, n := range neighbours {
-						//fmt.Printf("try to disconnect from %s\n", n)
-						err := DisconnectToPeers(ctx, ipfs, n)
-						if err != nil {
-							fmt.Printf("failed to disconnect: %v\n", err)
+				/*
+					if len(neighbours) != 0 {
+						for _, n := range neighbours {
+							//fmt.Printf("try to disconnect from %s\n", n)
+							err := DisconnectAllPeers(ctx, ipfs, n)
+							if err != nil {
+								fmt.Printf("failed to disconnect: %v\n", err)
+							}
 						}
-					}
-				}
+					}*/
 			}
 			fmt.Printf("worker-%d %s", theOrder, metrics.StandardOutput("ipfs-download", downTimer, int(fileSize)))
 		}(i)
@@ -927,7 +932,7 @@ func LocalNeighbour(np string) ([]string, error) {
 	return neighbours, nil
 }
 
-func DisconnectToPeers(ctx context.Context, ipfs icore.CoreAPI, remove string) error {
+func DisconnectAllPeers(ctx context.Context, ipfs icore.CoreAPI, remove string) error {
 	//peerInfos := make(map[peer.ID]*peerstore.PeerInfo, len(peers))
 	//var peerInfos map[peer.ID]*peerstore.PeerInfo
 	peerInfos, err := ipfs.Swarm().Peers(ctx)
@@ -937,7 +942,7 @@ func DisconnectToPeers(ctx context.Context, ipfs icore.CoreAPI, remove string) e
 	}
 	for _, con := range peerInfos {
 		if con.ID().String() != remove {
-			continue
+			// continue
 		}
 		ci := peer.AddrInfo{
 			Addrs: []multiaddr.Multiaddr{con.Address()},
@@ -947,16 +952,17 @@ func DisconnectToPeers(ctx context.Context, ipfs icore.CoreAPI, remove string) e
 		addrs, err := peer.AddrInfoToP2pAddrs(&ci)
 		if err != nil {
 			fmt.Println(err.Error())
+			continue
 		}
-		//fmt.Printf("disconnect from %v\n", addrs)
+		// fmt.Printf("disconnect from %v\n", addrs)
 
 		for _, addr := range addrs {
 			err = ipfs.Swarm().Disconnect(ctx, addr)
 			if err != nil {
-				return err
+				fmt.Printf("error while disconnect %s\n", err.Error())
+				break
 			}
 		}
-		break
 	}
 
 	return nil
