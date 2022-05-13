@@ -128,7 +128,7 @@ func TraceDownMetricsInit() {
 			throughput := float64(totalsize) / 1024 / 1024 / (timeUnit.Seconds())
 
 			//time throughput(MB/s) count averageLatency(ms) 99-percentile Latency
-			line := fmt.Sprintf("%s %f %d %f %f\n", time.Now().String(), throughput, AvgDownloadLatency.Count(), AvgDownloadLatency.Mean()/MS, AvgDownloadLatency.Percentile(float64(AvgDownloadLatency.Count())*0.99)/MS)
+			line := fmt.Sprintf("%s %f %d %f %f\n", time.Now().String(), throughput, AvgDownloadLatency.Count(), AvgDownloadLatency.Mean()/MS, AvgDownloadLatency.Percentile(0.99)/MS)
 			_, err := write.WriteString(line)
 			if err != nil {
 				fmt.Printf("failed to write string to log file, %s\n", err.Error())
@@ -379,7 +379,7 @@ func OutputMetrics0() {
 		return
 	}
 	for i := 0; i < pinNumber; i++ {
-		fmt.Printf("TimerPin-%d: %d ,     avg- %f ms, 0.9p- %f ms \n", i, TimerPin[i].Count(), TimerPin[i].Mean()/MS, TimerPin[i].Percentile(float64(TimerPin[i].Count())*0.9)/MS)
+		fmt.Printf("TimerPin-%d: %d ,     avg- %f ms, 0.9p- %f ms \n", i, TimerPin[i].Count(), TimerPin[i].Mean()/MS, TimerPin[i].Percentile(0.9)/MS)
 	}
 
 	for _, t := range Times {
@@ -393,15 +393,15 @@ func Output_addBreakdown() {
 	}
 	fmt.Println("-------------------------ADD-------------------------")
 	fmt.Printf("		avg(ms)    0.9p(ms)\n")
-	fmt.Printf("AddTimer: %d %f %f\n", AddTimer.Count(), AddTimer.Mean()/MS, AddTimer.Percentile(float64(AddTimer.Count())*0.9)/MS)
-	fmt.Printf("Provide: %d %f %f\n", Provide.Count(), Provide.Mean()/MS, Provide.Percentile(float64(Provide.Count())*0.9)/MS)
-	fmt.Printf("Persist: %d %f %f\n", Persist.Count(), Persist.Mean()/MS, Persist.Percentile(float64(Persist.Count())*0.9)/MS)
-	fmt.Printf("Dag&Other: %d %f %f\n", Dag.Count(), Dag.Mean()/MS, Dag.Percentile(float64(Dag.Count())*0.9)/MS)
+	fmt.Printf("AddTimer: %d %f %f\n", AddTimer.Count(), AddTimer.Mean()/MS, AddTimer.Percentile(0.9)/MS)
+	fmt.Printf("Provide: %d %f %f\n", Provide.Count(), Provide.Mean()/MS, Provide.Percentile(0.9)/MS)
+	fmt.Printf("Persist: %d %f %f\n", Persist.Count(), Persist.Mean()/MS, Persist.Percentile(0.9)/MS)
+	fmt.Printf("Dag&Other: %d %f %f\n", Dag.Count(), Dag.Mean()/MS, Dag.Percentile(0.9)/MS)
 	if Persist.Count() == 0 {
 		return
 	}
-	fmt.Printf("SyncTime: %d ,     avg- %f ms, 0.9p- %f ms \n", SyncTime.Count()/Persist.Count(), SyncTime.Mean()/MS, SyncTime.Percentile(float64(SyncTime.Count())*0.9)/MS)
-	fmt.Printf("DeduplicateOverhead: %d ,     avg- %f ms, 0.9p- %f ms \n", DeduplicateOverhead.Count()/Persist.Count(), DeduplicateOverhead.Mean()/MS, DeduplicateOverhead.Percentile(float64(DeduplicateOverhead.Count())*0.9)/MS)
+	fmt.Printf("SyncTime: %d ,     avg- %f ms, 0.9p- %f ms \n", SyncTime.Count()/Persist.Count(), SyncTime.Mean()/MS, SyncTime.Percentile(0.9)/MS)
+	fmt.Printf("DeduplicateOverhead: %d ,     avg- %f ms, 0.9p- %f ms \n", DeduplicateOverhead.Count()/Persist.Count(), DeduplicateOverhead.Mean()/MS, DeduplicateOverhead.Percentile(0.9)/MS)
 	//fmt.Printf("FlatfsPut: %d ,     avg- %f, 0.9p- %f \n", FlatfsPut.Count(), FlatfsPut.Mean()/MS, FlatfsPut.Percentile(float64(FlatfsPut.Count())*0.9)/MS)
 }
 
@@ -410,24 +410,24 @@ func Output_Get() {
 		return
 	}
 	fmt.Println("-------------------------GET-------------------------")
-	fmt.Printf(" BlockServiceTime: %d ,     avg- %f ms, 0.9p- %f ms \n", BlockServiceTime.Count(), BlockServiceTime.Mean()/MS, BlockServiceTime.Percentile(float64(BlockServiceTime.Count())*0.9)/MS)
-	fmt.Printf(" RootNeighbourAskingTime: %d ,     avg- %f ms, 0.9p- %f ms \n", RootNeighbourAskingTime.Count(), RootNeighbourAskingTime.Mean()/MS, RootNeighbourAskingTime.Percentile(float64(RootNeighbourAskingTime.Count())*0.9)/MS)
-	fmt.Printf(" RootFindProviderTime: %d ,     avg- %f ms, 0.9p- %f ms \n", RootFindProviderTime.Count(), RootFindProviderTime.Mean()/MS, RootFindProviderTime.Percentile(float64(RootFindProviderTime.Count())*0.9)/MS)
-	fmt.Printf(" RootWaitToWantTime: %d ,     avg- %f ms, 0.9p- %f ms \n", RootWaitToWantTime.Count(), RootWaitToWantTime.Mean()/MS, RootWaitToWantTime.Percentile(float64(RootWaitToWantTime.Count())*0.9)/MS)
-	fmt.Printf(" LeafWaitToWantTime: %d ,     avg- %f ms, 0.9p- %f ms \n", LeafWaitToWantTime.Count(), LeafWaitToWantTime.Mean()/MS, LeafWaitToWantTime.Percentile(float64(LeafWaitToWantTime.Count())*0.9)/MS)
-	fmt.Printf(" BitswapTime: %d ,     avg- %f ms, 0.9p- %f ms \n", BitswapTime.Count(), BitswapTime.Mean()/MS, BitswapTime.Percentile(float64(BitswapTime.Count())*0.9)/MS)
-	fmt.Printf(" PutStoreTime: %d ,     avg- %f ms, 0.9p- %f ms \n", PutStoreTime.Count(), PutStoreTime.Mean()/MS, PutStoreTime.Percentile(float64(PutStoreTime.Count())*0.9)/MS)
-	fmt.Printf(" VisitTime: %d ,     avg- %f ms, 0.9p- %f ms \n", VisitTime.Count(), VisitTime.Mean()/MS, VisitTime.Percentile(float64(VisitTime.Count())*0.9)/MS)
+	fmt.Printf(" BlockServiceTime: %d ,     avg- %f ms, 0.9p- %f ms \n", BlockServiceTime.Count(), BlockServiceTime.Mean()/MS, BlockServiceTime.Percentile(0.9)/MS)
+	fmt.Printf(" RootNeighbourAskingTime: %d ,     avg- %f ms, 0.9p- %f ms \n", RootNeighbourAskingTime.Count(), RootNeighbourAskingTime.Mean()/MS, RootNeighbourAskingTime.Percentile(0.9)/MS)
+	fmt.Printf(" RootFindProviderTime: %d ,     avg- %f ms, 0.9p- %f ms \n", RootFindProviderTime.Count(), RootFindProviderTime.Mean()/MS, RootFindProviderTime.Percentile(0.9)/MS)
+	fmt.Printf(" RootWaitToWantTime: %d ,     avg- %f ms, 0.9p- %f ms \n", RootWaitToWantTime.Count(), RootWaitToWantTime.Mean()/MS, RootWaitToWantTime.Percentile(0.9)/MS)
+	fmt.Printf(" LeafWaitToWantTime: %d ,     avg- %f ms, 0.9p- %f ms \n", LeafWaitToWantTime.Count(), LeafWaitToWantTime.Mean()/MS, LeafWaitToWantTime.Percentile(0.9)/MS)
+	fmt.Printf(" BitswapTime: %d ,     avg- %f ms, 0.9p- %f ms \n", BitswapTime.Count(), BitswapTime.Mean()/MS, BitswapTime.Percentile(0.9)/MS)
+	fmt.Printf(" PutStoreTime: %d ,     avg- %f ms, 0.9p- %f ms \n", PutStoreTime.Count(), PutStoreTime.Mean()/MS, PutStoreTime.Percentile(0.9)/MS)
+	fmt.Printf(" VisitTime: %d ,     avg- %f ms, 0.9p- %f ms \n", VisitTime.Count(), VisitTime.Mean()/MS, VisitTime.Percentile(0.9)/MS)
 
-	fmt.Printf(" RealGet: %d ,     avg- %f ms, 0.9p- %f ms \n", RealGet.Count(), RealGet.Mean()/MS, RealGet.Percentile(float64(RealGet.Count())*0.9)/MS)
-	fmt.Printf(" ModelGet: %d ,     avg- %f ms, 0.9p- %f ms \n", ModelGet.Count(), ModelGet.Mean()/MS, ModelGet.Percentile(float64(ModelGet.Count())*0.9)/MS)
-	fmt.Printf(" Variance: %d ,     avg- %f, 0.9p- %f \n", Variance.Count(), Variance.Mean()/1000000000, Variance.Percentile(float64(Variance.Count())*0.9)/1000000000)
+	fmt.Printf(" RealGet: %d ,     avg- %f ms, 0.9p- %f ms \n", RealGet.Count(), RealGet.Mean()/MS, RealGet.Percentile(0.9)/MS)
+	fmt.Printf(" ModelGet: %d ,     avg- %f ms, 0.9p- %f ms \n", ModelGet.Count(), ModelGet.Mean()/MS, ModelGet.Percentile(0.9)/MS)
+	fmt.Printf(" Variance: %d ,     avg- %f, 0.9p- %f \n", Variance.Count(), Variance.Mean()/1000000000, Variance.Percentile(0.9)/1000000000)
 
-	fmt.Printf(" GetNode: %d ,     avg- %f ms, 0.9p- %f ms \n", GetNode.Count(), GetNode.Mean()/MS, GetNode.Percentile(float64(GetNode.Count())*0.9)/MS)
-	fmt.Printf(" WriteTo: %d ,     avg- %f ms, 0.9p- %f ms \n", WriteTo.Count(), WriteTo.Mean()/MS, WriteTo.Percentile(float64(WriteTo.Count())*0.9)/MS)
+	fmt.Printf(" GetNode: %d ,     avg- %f ms, 0.9p- %f ms \n", GetNode.Count(), GetNode.Mean()/MS, GetNode.Percentile(0.9)/MS)
+	fmt.Printf(" WriteTo: %d ,     avg- %f ms, 0.9p- %f ms \n", WriteTo.Count(), WriteTo.Mean()/MS, WriteTo.Percentile(0.9)/MS)
 
-	fmt.Printf(" BlocksRedundant: %d,     avg- %f, 0.9p- %f\n", BlocksRedundant.Sum(), BlocksRedundant.Mean(), BlocksRedundant.Percentile(float64(BlocksRedundant.Count())*0.9))
-	fmt.Printf(" RequestsRedundant: %d,     avg- %f, 0.9p- %f\n", RequestsRedundant.Sum(), RequestsRedundant.Mean(), RequestsRedundant.Percentile(float64(RequestsRedundant.Count())*0.9))
+	fmt.Printf(" BlocksRedundant: %d,     avg- %f, 0.9p- %f\n", BlocksRedundant.Sum(), BlocksRedundant.Mean(), BlocksRedundant.Percentile(0.9))
+	fmt.Printf(" RequestsRedundant: %d,     avg- %f, 0.9p- %f\n", RequestsRedundant.Sum(), RequestsRedundant.Mean(), RequestsRedundant.Percentile(0.9))
 
 }
 
@@ -436,14 +436,14 @@ func Output_FP() {
 		return
 	}
 	fmt.Println("-------------------------FindProvider-------------------------")
-	fmt.Printf(" ChoosePeer: %d ,     avg- %f ms, 0.9p- %f ms \n", ChoosePeer.Count(), ChoosePeer.Mean()/MS, ChoosePeer.Percentile(float64(ChoosePeer.Count())*0.9)/MS)
-	fmt.Printf(" DailPeer: %d ,     avg- %f ms, 0.9p- %f ms \n", DailPeer.Count(), DailPeer.Mean()/MS, DailPeer.Percentile(float64(DailPeer.Count())*0.9)/MS)
-	fmt.Printf(" ResponsePeer: %d ,     avg- %f ms, 0.9p- %f ms \n", ResponsePeer.Count(), ResponsePeer.Mean()/MS, ResponsePeer.Percentile(float64(ResponsePeer.Count())*0.9)/MS)
-	fmt.Printf(" RealFindProvider: %d ,     avg- %f ms, 0.9p- %f ms \n", RealFindProvider.Count(), RealFindProvider.Mean()/MS, RealFindProvider.Percentile(float64(RealFindProvider.Count())*0.9)/MS)
-	fmt.Printf(" ModelFindProvider: %d ,     avg- %f ms, 0.9p- %f ms \n", ModelFindProvider.Count(), ModelFindProvider.Mean()/MS, ModelFindProvider.Percentile(float64(ModelFindProvider.Count())*0.9)/MS)
+	fmt.Printf(" ChoosePeer: %d ,     avg- %f ms, 0.9p- %f ms \n", ChoosePeer.Count(), ChoosePeer.Mean()/MS, ChoosePeer.Percentile(0.9)/MS)
+	fmt.Printf(" DailPeer: %d ,     avg- %f ms, 0.9p- %f ms \n", DailPeer.Count(), DailPeer.Mean()/MS, DailPeer.Percentile(0.9)/MS)
+	fmt.Printf(" ResponsePeer: %d ,     avg- %f ms, 0.9p- %f ms \n", ResponsePeer.Count(), ResponsePeer.Mean()/MS, ResponsePeer.Percentile(0.9)/MS)
+	fmt.Printf(" RealFindProvider: %d ,     avg- %f ms, 0.9p- %f ms \n", RealFindProvider.Count(), RealFindProvider.Mean()/MS, RealFindProvider.Percentile(0.9)/MS)
+	fmt.Printf(" ModelFindProvider: %d ,     avg- %f ms, 0.9p- %f ms \n", ModelFindProvider.Count(), ModelFindProvider.Mean()/MS, ModelFindProvider.Percentile(0.9)/MS)
 
-	fmt.Printf(" FPInnerNodes: %d ,     avg- %f, 0.9p- %f \n", FPInner.Count(), FPInner.Mean(), FPInner.Percentile(float64(FPInner.Count())*0.9))
-	fmt.Printf(" FPVariance: %d ,     avg- %f, 0.9p- %f \n", FPVariance.Count(), FPVariance.Mean()/1000000000, FPVariance.Percentile(float64(FPVariance.Count())*0.9)/1000000000)
+	fmt.Printf(" FPInnerNodes: %d ,     avg- %f, 0.9p- %f \n", FPInner.Count(), FPInner.Mean(), FPInner.Percentile(0.9))
+	fmt.Printf(" FPVariance: %d ,     avg- %f, 0.9p- %f \n", FPVariance.Count(), FPVariance.Mean()/1000000000, FPVariance.Percentile(0.9)/1000000000)
 
 }
 
@@ -504,6 +504,6 @@ func StartBackReport() {
 
 func StandardOutput(function string, t metrics.Timer, filesize int) string {
 	throughput := float64(filesize) / 1024 / 1024 / (t.Mean() / 1000000000)
-	return fmt.Sprintf("%f %f %f\n", throughput, t.Mean()/1000000, t.Percentile(float64(t.Count())*0.99)/MS)
+	return fmt.Sprintf("%f %f %f\n", throughput, t.Mean()/1000000, t.Percentile(0.99)/MS)
 	// return fmt.Sprintf("%s: %d files, average latency: %f ms, 0.99P latency: %f ms\n", function, t.Count(), t.Mean()/MS, t.Percentile(float64(t.Count())*0.99)/MS)
 }
