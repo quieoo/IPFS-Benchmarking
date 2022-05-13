@@ -383,14 +383,6 @@ func (m *Monitor) ModeledTime() time.Duration {
 	}
 	var result int64
 	Breakdown := m.GetBreakdown()
-	for _, t := range Breakdown.Bitswap {
-		fmt.Println(t.Seconds())
-	}
-	fmt.Println("-------------")
-	for _, t := range Breakdown.PutStore {
-		fmt.Println(t.Seconds())
-	}
-	fmt.Println("-------------")
 
 	blockServiceAVG, blockServiceTail := GetAvgAndTail(Breakdown.BlockService)
 	bitswapAVG, bitswapTail := GetAvgAndTail(Breakdown.Bitswap)
@@ -398,8 +390,8 @@ func (m *Monitor) ModeledTime() time.Duration {
 	leafWWAVG, leafWWTail := GetAvgAndTail(Breakdown.LeafWaitToWant)
 	visitAVG, visitTail := GetAvgAndTail(Breakdown.Visit)
 
-	fmt.Printf("%f %f\n", bitswapAVG/1000000, float64(bitswapTail)/1000000)
-	fmt.Printf("%f %f\n", putStoreAVG/1000000, float64(putStoreTail)/1000000)
+	//fmt.Printf("%f %f\n", bitswapAVG/1000000, float64(bitswapTail)/1000000)
+	//fmt.Printf("%f %f\n", putStoreAVG/1000000, float64(putStoreTail)/1000000)
 
 	//Root Node Time
 	result = Breakdown.NeighbourAsk.Nanoseconds() + Breakdown.FindProvider.Nanoseconds() + Breakdown.RootWaitToWant.Nanoseconds()
