@@ -24,6 +24,7 @@ var CMD_FastSync = false
 var ProviderWorker = 8
 var CMD_EarlyAbort = false
 var EarlyAbortCheck = 5
+var CMD_PeerRH = false
 
 var BlockSizeLimit = 1 * 1024 * 1024
 
@@ -103,6 +104,9 @@ var ALL_DownloadedFileSize []int
 var ALL_AvgDownloadLatency metrics.Timer
 
 var GetBreakDownLog = false
+
+// expDHT:
+var GPeerRH *PeerResponseHistory
 
 func TraceDownMetricsInit() {
 	AvgDownloadLatency = metrics.NewTimer()
@@ -242,6 +246,8 @@ func TimersInit() {
 	SuccessfullyProvide = 0
 	StartBackProvideTime = ZeroTime
 
+	GPeerRH = NewPeerRH(1, 0) // 历史信息不起作用
+	//GPeerRH = NewPeerRH(1, 1) // 历史信息与逻辑距离 1:1
 }
 
 const MS = 1000000

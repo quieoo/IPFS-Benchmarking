@@ -696,6 +696,9 @@ func main() {
 	flag.BoolVar(&(metrics.CMD_ProvideEach), "provideeach", false, "manually provide(Provide_Through, the default IPFS Provide uses a Provide_Back strategy) every files after upload")
 	flag.BoolVar(&(metrics.CMD_StallAfterUpload), "stallafterupload", false, "stall after upload")
 
+	// expDHT:
+	flag.BoolVar(&(metrics.CMD_PeerRH), "PeerRH", false, "Whether to enable PeerResponseHistory")
+
 	var cmd string
 	var filesize int
 	var sizestring string
