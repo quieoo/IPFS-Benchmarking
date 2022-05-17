@@ -194,7 +194,7 @@ func (prh *PeerResponseHistory) findTime(peerID string) float64 {
 
 		prh.hit.Inc(1)
 
-		fmt.Println("hit", ci.responseDur)
+		//fmt.Println("hit", ci.responseDur)
 
 		return ci.responseDur
 	}
@@ -204,7 +204,7 @@ func (prh *PeerResponseHistory) findTime(peerID string) float64 {
 
 		prh.miss.Inc(1)
 
-		fmt.Println("miss", avgTime)
+		//fmt.Println("miss", avgTime)
 
 		return avgTime
 	}
