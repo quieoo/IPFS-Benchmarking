@@ -25,6 +25,7 @@ var ProviderWorker = 8
 var CMD_EarlyAbort = false
 var EarlyAbortCheck = 5
 var CMD_PeerRH = false
+var CMD_LoadSaveCache = false
 
 var BlockSizeLimit = 1 * 1024 * 1024
 
@@ -107,6 +108,7 @@ var GetBreakDownLog = false
 
 // expDHT:
 var GPeerRH *PeerResponseHistory
+var B float64 = 1e70
 
 func TraceDownMetricsInit() {
 	AvgDownloadLatency = metrics.NewTimer()
@@ -246,7 +248,9 @@ func TimersInit() {
 	SuccessfullyProvide = 0
 	StartBackProvideTime = ZeroTime
 
-	GPeerRH = NewPeerRH(1, 0) // 历史信息不起作用
+	// 假设一个cacheline 需要 200 个字节，那么我们让最多设置 5e6 个 cacheline
+	// 此时需要 1GB 内存，为了测试方便，我们先设置如上个数
+	GPeerRH = NewPeerRH(1, B, 5*1e6) // 历史信息不起作用
 	//GPeerRH = NewPeerRH(1, 1) // 历史信息与逻辑距离 1:1
 }
 
@@ -437,6 +441,22 @@ func Output_Get() {
 
 }
 
+func Output_PeerRH() {
+	if !CMD_PeerRH {
+		return
+	}
+
+	hit := GPeerRH.hit.Count()
+	miss := GPeerRH.miss.Count()
+
+	fmt.Println("-------------------------PeerResponseHistory-------------------------")
+	fmt.Printf("PRH: FindPeerHistory hit %v, miss %v\n", hit, miss)
+	fmt.Printf("PRH: FindPeerHistory hit rate : %v\n", float64(hit)/float64(hit+miss))
+	fmt.Printf("PRH: Cache size %v\n", GPeerRH.lruCache.Len())
+	fmt.Printf("PRH: Compromise %v, AllCmp %v, compromise rate: %v\n", GPeerRH.Compromise.Count(),
+		GPeerRH.AllCmp.Count(), float64(GPeerRH.Compromise.Count())/float64(GPeerRH.AllCmp.Count()))
+}
+
 func Output_FP() {
 	if !CMD_EnableMetrics {
 		return
@@ -450,7 +470,6 @@ func Output_FP() {
 
 	fmt.Printf(" FPInnerNodes: %d ,     avg- %f, 0.9p- %f \n", FPInner.Count(), FPInner.Mean(), FPInner.Percentile(0.9))
 	fmt.Printf(" FPVariance: %d ,     avg- %f, 0.9p- %f \n", FPVariance.Count(), FPVariance.Mean()/1000000000, FPVariance.Percentile(0.9)/1000000000)
-
 }
 
 func call(skip int) {

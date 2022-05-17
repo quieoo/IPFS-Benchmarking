@@ -451,7 +451,11 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 				}
 				downTimer.UpdateSince(start)
 
+				if metrics.CMD_PeerRH {
+					metrics.Output_PeerRH()
+				}
 				fmt.Printf("Thread %d get file %s %f\n", theOrder, cid, time.Now().Sub(start).Seconds()*1000)
+
 				//provide after get
 				if pag {
 					err := ipfs.Dht().Provide(ctx, p)
@@ -698,6 +702,7 @@ func main() {
 
 	// expDHT:
 	flag.BoolVar(&(metrics.CMD_PeerRH), "PeerRH", false, "Whether to enable PeerResponseHistory")
+	flag.BoolVar(&(metrics.CMD_LoadSaveCache), "loadsavecache", false, "Whether to load & save PeerResponseHistory")
 
 	var cmd string
 	var filesize int
@@ -767,6 +772,8 @@ func main() {
 
 	flag.IntVar(&(metrics.BlockSizeLimit), "blocksizelimit", 1024*1024, "chunk size")
 
+	flag.Float64Var(&(metrics.B), "B", 1e70, "parameter for ax + by")
+
 	flag.Parse()
 
 	// NOTE: check the concurrentGet.
@@ -791,9 +798,14 @@ func main() {
 			metrics.Output_addBreakdown()
 			metrics.Output_Get()
 			metrics.Output_FP()
+			metrics.Output_PeerRH()
 			metrics.OutputMetrics0()
 			metrics.Output_ProvideMonitor()
 		}()
+		if metrics.CMD_LoadSaveCache {
+			metrics.GPeerRH.Load()
+			defer metrics.GPeerRH.Store()
+		}
 	}
 
 	//see logs

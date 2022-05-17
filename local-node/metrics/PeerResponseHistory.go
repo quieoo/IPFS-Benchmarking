@@ -1,11 +1,16 @@
 package metrics
 
 import (
+	"bufio"
 	"encoding/csv"
 	"fmt"
+	lru "github.com/hashicorp/golang-lru"
+	gometrics "github.com/rcrowley/go-metrics"
+	"io"
 	"math/big"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -15,16 +20,6 @@ type PeerLatency struct {
 	pltm sync.Map // 记录时间列表
 
 	beg time.Time
-
-	//cplMaxInAQuery int
-	//cplMinInAQuery int
-	//tMax           time.Duration
-	//tMin           time.Duration
-	//
-	//accessCounter metrics.Gauge
-	//hitCounter    int
-	//
-	//alpha float64
 }
 
 func NewPeerLatency(alpha float64) *PeerLatency {
@@ -35,13 +30,6 @@ func NewPeerLatency(alpha float64) *PeerLatency {
 		plm:  sync.Map{},
 		pltm: sync.Map{},
 		beg:  time.Now(),
-		//cplMaxInAQuery: 0,
-		//cplMinInAQuery: 0,
-		//tMax:           time.Duration(0),
-		//tMin:           time.Duration(0),
-		//accessCounter:  0,
-		//hitCounter:     0,
-		//alpha:          alpha,
 	}
 
 	return &pl
@@ -99,28 +87,16 @@ func (pl *PeerLatency) PrintToCsv() {
 	w.Flush()
 }
 
-// Record 记录一个时间
-// 只会在 query 一个 peer 之后调用，用来记录数据
-// 需要保证线程安全
-//func (pl *PeerLatency) Record(pid string, t time.Duration, cpl int) {
-//
-//}
-
-// GetScore 查找一个 Peer 的 访问时间，并返回一个综合得分
-//// TODO: 需要保证线程安全，所以把counter换成metrics对象
-//func (pl *PeerLatency) GetScore(pid string, cpl int) float64 {
-//
-//}
-
-type ListItem struct {
-	prv    *ListItem
-	nxt    *ListItem
-	peerID string
+type CacheItem struct {
+	responseDur float64
 }
 
-type HistoryItem struct {
-	latency int64 // Mil sec
-	ptr     *ListItem
+func NewCacheItem(rspd float64) *CacheItem {
+	var ci CacheItem
+	ci = CacheItem{
+		responseDur: rspd,
+	}
+	return &ci
 }
 
 // PeerResponseHistory
@@ -129,49 +105,57 @@ type PeerResponseHistory struct {
 	a *big.Float
 	b *big.Float
 
-	// mp 存储 <peerID, <queryLatency, 一个指针>>
-	// mp 暂时只存 <peerID, 访问延迟(int64)>
-	// 更新策略如下：
-	//  1. 数量的上限为
-	//  2. 超过数量上限的时候我们使用 LRU 替换策略
-	//    2-1. 指向一个排队队列，如果更新？我们就把旧节点放到链表头
-	//         如果新增我们就在链表头新增新节点
-	//    2-2. 当我们删除一个节点时，我们就从链表的结尾指向我们的这个map的peerID，
-	//         然后再删除(使用sync.Map的删除)
-	// 我们的时间单位都取 微秒
-	mp sync.Map
+	// lruCache 用来存储每个peer最近一次的 response 时间
+	// <peerID, *CacheItem>
+	lruCache *lru.Cache
 
 	// metaMp 存储一些关键的元数据
-	// <"cnt", int64> 存储当前的 mp 记录了多少个peer
 	// <"avgTime", float64> 存储当前的 mp 记录过的时间的平均值
-	// <"allCnt", int64> 存储当前的 mp 曾经添加过多少次记录
+	// to rm <"miss", int64> 存储为命中的次数
 	metaMp sync.Map
 
-	// q 是一个链表。每一个链表项为<peerID>
-	// 我们再删除一个数据的时候，我们从链表的结尾删除这个元素
-	// q list
+	hit  gometrics.Counter // findTime hit 了多少次
+	miss gometrics.Counter // findTime miss 了多少次
 
-	// todo: 线程安全
-	// cnt 记录
-	//cnt int64
+	Compromise gometrics.Counter // 因为时间而妥协的次数
+	AllCmp     gometrics.Counter // 所有的比较次数
 
-	// avgTime, allCnt 用来计算历史所有记录的 query time 平均时间
-	//avgTime float64
-	//allCnt  int64
+	updateCnt gometrics.Counter // Update 了多少次
+
 }
 
-func NewPeerRH(a, b float64) *PeerResponseHistory {
+// NewPeerRH 创建一个 PeerResponseHistory 对象
+func NewPeerRH(a, b float64, size int) *PeerResponseHistory {
 	var prh PeerResponseHistory
+	lc, err := lru.New(size)
+	if err != nil {
+		fmt.Println("fail to create cache !!!")
+		os.Exit(13)
+	}
 	prh = PeerResponseHistory{
-		a:      new(big.Float).SetFloat64(a),
-		b:      new(big.Float).SetFloat64(b),
-		mp:     sync.Map{},
-		metaMp: sync.Map{},
+		a:        new(big.Float).SetFloat64(a),
+		b:        new(big.Float).SetFloat64(b),
+		lruCache: lc,
+		metaMp:   sync.Map{},
+
+		hit:        gometrics.NewCounter(),
+		miss:       gometrics.NewCounter(),
+		updateCnt:  gometrics.NewCounter(),
+		Compromise: gometrics.NewCounter(),
+		AllCmp:     gometrics.NewCounter(),
+	}
+	err1 := gometrics.Register("hit", prh.hit)
+	err2 := gometrics.Register("miss", prh.miss)
+	err3 := gometrics.Register("updateCnt", prh.updateCnt)
+	err4 := gometrics.Register("Compromise", prh.Compromise)
+	err5 := gometrics.Register("AllCmp", prh.AllCmp)
+
+	if err1 != nil && err2 != nil && err3 != nil && err4 != nil && err5 != nil {
+		fmt.Println("fail to register metrics")
+		os.Exit(14)
 	}
 
-	prh.metaMp.Store("cnt", int64(0))
 	prh.metaMp.Store("avgTime", float64(0)) // 初始值为 0 是可以的 —— 意味着不会产生影响
-	prh.metaMp.Store("allCnt", int64(0))
 
 	return &prh
 }
@@ -199,20 +183,29 @@ func (prh *PeerResponseHistory) GetScore(dis *big.Int, peerID string) *big.Float
 	ans_p1.Mul(prh.a, disF)
 	ans_p2.Mul(prh.b, findTF)
 	ans.Add(&ans_p1, &ans_p2)
+
 	return &ans
 }
 
 func (prh *PeerResponseHistory) findTime(peerID string) float64 {
 	// 查询 prh.mp 找到对应的时间，暂时不做LRU相关的操作，我们后续再考虑这个问题
-	if val, ok := prh.mp.Load(peerID); ok {
-		tm := val.(int64)
-		fmt.Println("hit")
-		return float64(tm)
+	if val, ok := prh.lruCache.Get(peerID); ok {
+		ci := val.(*CacheItem)
+
+		prh.hit.Inc(1)
+
+		fmt.Println("hit", ci.responseDur)
+
+		return ci.responseDur
 	}
 
 	if val, ok2 := prh.metaMp.Load("avgTime"); ok2 {
 		avgTime := val.(float64)
-		fmt.Println("miss")
+
+		prh.miss.Inc(1)
+
+		fmt.Println("miss", avgTime)
+
 		return avgTime
 	}
 
@@ -222,42 +215,100 @@ func (prh *PeerResponseHistory) findTime(peerID string) float64 {
 // Update 记录 / 更新 某个 peer 的queryTime的时间？
 // TODO: 这样做会不会导致因为一次 response 太慢，然后后续更不太可能用到它，从而一直？
 func (prh *PeerResponseHistory) Update(peerID string, dur time.Duration) int {
-	// 更新 prh.mp
+	// 更新 lru-cache
 	var tm int64
-	prh.mp.Store(peerID, dur.Milliseconds())
-	//if val, ok := prh.mp.Load(peerID); ok {
-	//	//hi := val.(*HistoryItem)
-	//	//hi.latency = dur.Milliseconds()
-	//	tm := val.(int64)
-	//	tm = dur.Milliseconds()
-	//	prh.mp.Store(peerID, tm) // expDHT:此处我有点困惑，如果直接 store 会不会覆盖旧的值？
-	//}
+	tm = dur.Milliseconds()
+
+	prh.lruCache.Add(peerID, NewCacheItem(float64(tm)))
+	//prh.mp.Store(peerID, dur.Milliseconds())
 
 	// 更新 prh.metaMp
-	var cnt int64
 	var avgTime float64
-	var allCnt int64
 
-	if val, ok2 := prh.metaMp.Load("cnt"); ok2 {
-		cnt = val.(int64)
-	}
 	if val, ok3 := prh.metaMp.Load("avgTime"); ok3 {
 		avgTime = val.(float64)
 	}
-	if val, ok4 := prh.metaMp.Load("allCnt"); ok4 {
-		allCnt = val.(int64)
-	}
 
-	cnt = cnt + 1
-	allCntF := float64(allCnt)
+	allCntF := float64(prh.updateCnt.Count())
 	avgTime = avgTime*(allCntF/(allCntF+1)) + float64(tm)/(allCntF+1)
-	allCnt = allCnt + 1
+	prh.updateCnt.Inc(1)
 
-	prh.metaMp.Store("cnt", cnt)
 	prh.metaMp.Store("avgTime", avgTime)
-	prh.metaMp.Store("allCnt", allCnt)
-
-	// 更新 prh.q
 
 	return 0
+}
+
+// 暂且令这个本地文件叫做 cache.txt
+
+// Load 从一个文件中读取之前保存下来的 Cache 信息
+func (prh *PeerResponseHistory) Load() {
+	// 读取文件中的每一个 peerID responseTime，然后添加到 Cache 里
+	inputFile, inputError := os.Open("cache.txt")
+	if inputError != nil {
+		fmt.Printf("An error occurred on opening the inputfile\n" +
+			"Does the file exist?\n" +
+			"Have you got acces to it?\n")
+		return // exit the function on error
+	}
+	defer inputFile.Close()
+
+	inputReader := bufio.NewReader(inputFile)
+	cnt := 0
+	for {
+		peerIDtmp, readerError := inputReader.ReadString(' ')
+		if readerError == io.EOF {
+			break
+		}
+		peerID := strings.TrimRight(peerIDtmp, " ")
+
+		peerResponseTmp, readerError := inputReader.ReadString('\n')
+		if readerError == io.EOF {
+			break
+		}
+		peerResponse := strings.TrimRight(peerResponseTmp, "\n")
+
+		rspd, err := strconv.ParseFloat(peerResponse, 64)
+		if err != nil {
+			fmt.Println("fail to convert string to float64.")
+			return
+		}
+
+		ci := &CacheItem{
+			responseDur: rspd,
+		}
+
+		GPeerRH.lruCache.Add(peerID, ci)
+		cnt++
+	}
+
+	fmt.Printf("Preload PeerResponseHistory cache : %v\n", cnt)
+}
+
+// Store 从一个文件中读取之前保存下来的 Cache 信息
+func (prh *PeerResponseHistory) Store() {
+	// 将 Cache 信息写到本地的文件中
+	outputFile, outputError := os.OpenFile("cache.txt", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+	if outputError != nil {
+		fmt.Printf("An error occurred with file opening or creation\n")
+		return
+	}
+	defer outputFile.Close()
+
+	outputWriter := bufio.NewWriter(outputFile)
+
+	keys := GPeerRH.lruCache.Keys()
+	len := GPeerRH.lruCache.Len()
+	cnt := 0
+	for i := 0; i < len; i++ {
+		val, _ := GPeerRH.lruCache.Peek(keys[i])
+		key := keys[i].(string)
+		rspds := fmt.Sprintf("%f", val.(*CacheItem).responseDur)
+		res := key + " " + rspds + "\n"
+		outputWriter.WriteString(res)
+		cnt++
+		//fmt.Println(res)
+	}
+
+	outputWriter.Flush()
+	fmt.Printf("Store PeerResponseHistory cache : %v\n", cnt)
 }
