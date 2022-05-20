@@ -764,6 +764,8 @@ func main() {
 
 	flag.IntVar(&(metrics.BlockSizeLimit), "blocksizelimit", 1024*1024, "chunk size")
 
+	flag.BoolVar(&(metrics.EnablePbitswap), "enablepbitswap", false, "whether to enable pbitswap(re-order blk request sequence for each provider, load-balanced request batch, find co-workers from providers). "+
+		"Note that if enable pbitswap the metrics will be no longer accurate.")
 	flag.Parse()
 
 	// NOTE: check the concurrentGet.
