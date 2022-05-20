@@ -24,6 +24,7 @@ var CMD_FastSync = false
 var ProviderWorker = 8
 var CMD_EarlyAbort = false
 var EarlyAbortCheck = 5
+var EnablePbitswap = false
 
 var BlockSizeLimit = 1 * 1024 * 1024
 
@@ -379,7 +380,7 @@ func OutputMetrics0() {
 		return
 	}
 	for i := 0; i < pinNumber; i++ {
-		fmt.Printf("TimerPin-%d: %d ,     avg- %f ms, 0.9p- %f ms \n", i, TimerPin[i].Count(), TimerPin[i].Mean()/MS, TimerPin[i].Percentile(0.9)/MS)
+		fmt.Printf("TimerPin-%d: %d ,     avg- %f ms, 0.9p- %f ms 0.1p- %f \n", i, TimerPin[i].Count(), TimerPin[i].Mean()/MS, TimerPin[i].Percentile(0.9)/MS, TimerPin[i].Percentile(0.1)/MS)
 	}
 
 	for _, t := range Times {
