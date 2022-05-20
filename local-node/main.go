@@ -451,7 +451,11 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 				}
 				downTimer.UpdateSince(start)
 
+				if metrics.CMD_PeerRH {
+					metrics.Output_PeerRH()
+				}
 				fmt.Printf("Thread %d get file %s %f\n", theOrder, cid, time.Now().Sub(start).Seconds()*1000)
+
 				//provide after get
 				if pag {
 					err := ipfs.Dht().Provide(ctx, p)
@@ -696,6 +700,10 @@ func main() {
 	flag.BoolVar(&(metrics.CMD_ProvideEach), "provideeach", false, "manually provide(Provide_Through, the default IPFS Provide uses a Provide_Back strategy) every files after upload")
 	flag.BoolVar(&(metrics.CMD_StallAfterUpload), "stallafterupload", false, "stall after upload")
 
+	// expDHT:
+	flag.BoolVar(&(metrics.CMD_PeerRH), "PeerRH", false, "Whether to enable PeerResponseHistory")
+	flag.BoolVar(&(metrics.CMD_LoadSaveCache), "loadsavecache", false, "Whether to load & save PeerResponseHistory")
+
 	var cmd string
 	var filesize int
 	var sizestring string
@@ -766,6 +774,8 @@ func main() {
 
 	flag.BoolVar(&(metrics.EnablePbitswap), "enablepbitswap", false, "whether to enable pbitswap(re-order blk request sequence for each provider, load-balanced request batch, find co-workers from providers). "+
 		"Note that if enable pbitswap the metrics will be no longer accurate.")
+	flag.Float64Var(&(metrics.B), "B", 1e70, "parameter for ax + by")
+
 	flag.Parse()
 
 	// NOTE: check the concurrentGet.
@@ -790,9 +800,14 @@ func main() {
 			metrics.Output_addBreakdown()
 			metrics.Output_Get()
 			metrics.Output_FP()
+			metrics.Output_PeerRH()
 			metrics.OutputMetrics0()
 			metrics.Output_ProvideMonitor()
 		}()
+		if metrics.CMD_LoadSaveCache {
+			metrics.GPeerRH.Load()
+			defer metrics.GPeerRH.Store()
+		}
 	}
 
 	//see logs
