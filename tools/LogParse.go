@@ -74,8 +74,8 @@ func TraceDownload() {
 }
 
 func FindProvider() {
-	filename := "fp"
-	prefixs := []string{" RealGet", " RealFindProvider", " ChoosePeer", " DailPeer", " ResponsePeer", " RootWaitToWantTime:"}
+	filename := "findProvider_WAN_log2"
+	prefixs := []string{"TimerPin-0:", "TimerPin-1:"}
 	errPrefix := "error while get"
 	interval := 100
 
@@ -117,6 +117,7 @@ func FindProvider() {
 					break
 				}
 				if strings.HasPrefix(line, prefix) {
+					fmt.Println(line)
 					ss := strings.Split(line, " ")
 					ls, _ := strconv.ParseFloat(ss[9], 64)
 					points = append(points, ls)

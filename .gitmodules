@@ -43,3 +43,18 @@
 [submodule "local-node/go-ipfs-chunker"]
 	path = local-node/go-ipfs-chunker
 	url = https://github.com/quieoo/go-ipfs-chunker.git
+[submodule "local-node/go-libp2p"]
+	path = local-node/go-libp2p
+	url = https://github.com/quieoo/go-libp2p.git
+[submodule "local-node/go-libp2p-core"]
+	path = local-node/go-libp2p-core
+	url = https://github.com/quieoo/go-libp2p-core.git
+[submodule "local-node/go-ipfs-exchange-interface"]
+	path = local-node/go-ipfs-exchange-interface
+	url = https://github.com/quieoo/go-ipfs-exchange-interface.git
+[submodule "local-node/go-ipfs-exchange-offline"]
+	path = local-node/go-ipfs-exchange-offline
+	url = https://github.com/quieoo/go-ipfs-exchange-offline.git
+[submodule "local-node/go-libp2p-routing-helpers"]
+	path = local-node/go-libp2p-routing-helpers
+	url = https://github.com/quieoo/go-libp2p-routing-helpers.git
