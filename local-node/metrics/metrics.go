@@ -443,9 +443,6 @@ func Output_Get() {
 }
 
 func Output_PeerRH() {
-	if !CMD_PeerRH {
-		return
-	}
 
 	hit := GPeerRH.hit.Count()
 	miss := GPeerRH.miss.Count()
