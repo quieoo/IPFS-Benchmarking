@@ -468,16 +468,18 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 				// DO NOT WORK
 				//DisconnectAllPeers(ctx, ipfs)
 				//remove neighbours
-				/*
-					if len(neighbours) != 0 {
-						for _, n := range neighbours {
-							//fmt.Printf("try to disconnect from %s\n", n)
-							err := DisconnectAllPeers(ctx, ipfs, n)
-							if err != nil {
-								fmt.Printf("failed to disconnect: %v\n", err)
-							}
+				if len(neighbours) != 0 {
+					for _, n := range neighbours {
+						//fmt.Printf("try to disconnect from %s\n", n)
+						err := DisconnectAllPeers(ctx, ipfs, n)
+						if err != nil {
+							fmt.Printf("failed to disconnect: %v\n", err)
+						} else {
+							fmt.Printf("succeed to disconnect: %v\n", n)
 						}
-					}*/
+
+					}
+				}
 			}
 			fmt.Printf("worker-%d %s", theOrder, metrics.StandardOutput("ipfs-download", downTimer, int(fileSize)))
 		}(i)
@@ -774,7 +776,8 @@ func main() {
 
 	flag.BoolVar(&(metrics.EnablePbitswap), "enablepbitswap", false, "whether to enable pbitswap(re-order blk request sequence for each provider, load-balanced request batch, find co-workers from providers). "+
 		"Note that if enable pbitswap the metrics will be no longer accurate.")
-	flag.Float64Var(&(metrics.B), "B", 1e70, "parameter for ax + by")
+
+	flag.Float64Var(&(metrics.B), "B", 0, "parameter for ax + by")
 
 	flag.Parse()
 

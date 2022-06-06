@@ -251,7 +251,7 @@ func TimersInit() {
 
 	// 假设一个cacheline 需要 200 个字节，那么我们让最多设置 5e6 个 cacheline
 	// 此时需要 1GB 内存，为了测试方便，我们先设置如上个数
-	GPeerRH = NewPeerRH(1, B, 5*1e6) // 历史信息不起作用
+	GPeerRH = NewPeerRH(1, B, 5*1e6)
 	//GPeerRH = NewPeerRH(1, 1) // 历史信息与逻辑距离 1:1
 }
 

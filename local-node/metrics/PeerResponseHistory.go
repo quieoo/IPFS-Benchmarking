@@ -6,6 +6,7 @@ import (
 	"fmt"
 	lru "github.com/hashicorp/golang-lru"
 	gometrics "github.com/rcrowley/go-metrics"
+	ks "github.com/whyrusleeping/go-keyspace"
 	"io"
 	"math/big"
 	"os"
@@ -102,8 +103,10 @@ func NewCacheItem(rspd float64) *CacheItem {
 // PeerResponseHistory
 type PeerResponseHistory struct {
 	// a, b, score 公式的权重
-	a *big.Float
-	b *big.Float
+	a float64
+	b float64
+	//a *big.Float
+	//b *big.Float
 
 	// lruCache 用来存储每个peer最近一次的 response 时间
 	// <peerID, *CacheItem>
@@ -133,8 +136,8 @@ func NewPeerRH(a, b float64, size int) *PeerResponseHistory {
 		os.Exit(13)
 	}
 	prh = PeerResponseHistory{
-		a:        new(big.Float).SetFloat64(a),
-		b:        new(big.Float).SetFloat64(b),
+		a:        a,
+		b:        b,
 		lruCache: lc,
 		metaMp:   sync.Map{},
 
@@ -160,7 +163,8 @@ func NewPeerRH(a, b float64, size int) *PeerResponseHistory {
 	return &prh
 }
 
-func (prh *PeerResponseHistory) GetScore(dis *big.Int, peerID string) *big.Float {
+//func (prh *PeerResponseHistory) GetScore(dis *big.Int, peerID string) *big.Float {
+func (prh *PeerResponseHistory) GetScore(dis *big.Int, peerID string) *float64 {
 	// expDHT:
 	//  1. big.Int 类型转换
 	//  2. 对于两个分数，如果一个有，一个没有怎么办？
@@ -168,21 +172,38 @@ func (prh *PeerResponseHistory) GetScore(dis *big.Int, peerID string) *big.Float
 	// 		2-2. 1有1没有怎么办？如果一个有一个没有？那就同时看没有的那个？
 	//  一种解决的方案是我们记录一个历史的query时间的平均时间。如果没有，那我们就拿平均的时间进来作比较
 
-	disF := new(big.Float).SetInt(dis)
+	//findT64 := prh.findTime(peerID)
+	//
+	//if findT64 == -1 {
+	//	os.Exit(12)
+	//}
+	//
+	//disF := new(big.Float).SetInt(dis)
+	//findTF := new(big.Float).SetFloat64(findT64)
+	//var ans_p1 big.Float
+	//var ans_p2 big.Float
+	//var ans big.Float
+	//ans_p1.Mul(prh.a, disF)
+	//ans_p2.Mul(prh.b, findTF)
+	//ans.Add(&ans_p1, &ans_p2)
 
-	findT64 := prh.findTime(peerID)
+	logicDis := (32-len(dis.Bytes()))*8 + ks.ZeroPrefixLen(dis.Bytes())
+
+	// NOTE: 我们让取出来的时间 / 1000
+	findT64 := prh.findTime(peerID) / 1000
 
 	if findT64 == -1 {
 		os.Exit(12)
 	}
+	var ans float64
 
-	findTF := new(big.Float).SetFloat64(findT64)
-	var ans_p1 big.Float
-	var ans_p2 big.Float
-	var ans big.Float
-	ans_p1.Mul(prh.a, disF)
-	ans_p2.Mul(prh.b, findTF)
-	ans.Add(&ans_p1, &ans_p2)
+	// 1. 此时我们的逻辑距离是 logicDis, 它是公共前缀的长度；公共前缀越长，逻辑距离越近
+	//    所以我们对逻辑距离取相反数
+	// 2. 因为历史时间大概在 1e3 ms 这个数量级，所以不妨先让历史时间 / 1000
+	// 3. (1-b) * (-逻辑距离) + b * 历史时间
+	// 4. 我们暂时先不使用 a 这个参数，我们先用 b 吧
+
+	ans = (1-prh.b)*float64(-logicDis) + prh.b*findT64
 
 	return &ans
 }
