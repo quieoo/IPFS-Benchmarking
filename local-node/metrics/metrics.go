@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"github.com/rcrowley/go-metrics"
+	"github.com/syndtr/goleveldb/leveldb"
 	"os"
 	"runtime"
 	"sync"
@@ -106,10 +107,14 @@ var ALL_DownloadedFileSize []int
 var ALL_AvgDownloadLatency metrics.Timer
 
 var GetBreakDownLog = false
+var CPLInDHTQureyLog = false
 
 // expDHT:
 var GPeerRH *PeerResponseHistory
 var B float64 = 1e70
+
+var DataStorePut metrics.Histogram
+var MetricsStartTime time.Time
 
 func TraceDownMetricsInit() {
 	AvgDownloadLatency = metrics.NewTimer()
@@ -155,6 +160,7 @@ func TimersInit() {
 	if !CMD_EnableMetrics {
 		return
 	}
+	MetricsStartTime = time.Now()
 	for i := 0; i < pinNumber; i++ {
 		pin := metrics.NewTimer()
 		metrics.Register("pin"+string(rune(i)), pin)
@@ -253,6 +259,9 @@ func TimersInit() {
 	// 此时需要 1GB 内存，为了测试方便，我们先设置如上个数
 	GPeerRH = NewPeerRH(1, B, 5*1e6) // 历史信息不起作用
 	//GPeerRH = NewPeerRH(1, 1) // 历史信息与逻辑距离 1:1
+
+	DataStorePut = metrics.NewHistogram(metrics.NewExpDecaySample(1028, 0.015))
+
 }
 
 const MS = 1000000
@@ -404,10 +413,10 @@ func Output_addBreakdown() {
 	}
 	fmt.Println("-------------------------ADD-------------------------")
 	fmt.Printf("		avg(ms)    0.9p(ms)\n")
-	fmt.Printf("AddTimer: %d %f %f\n", AddTimer.Count(), AddTimer.Mean()/MS, AddTimer.Percentile(0.9)/MS)
-	fmt.Printf("Provide: %d %f %f\n", Provide.Count(), Provide.Mean()/MS, Provide.Percentile(0.9)/MS)
-	fmt.Printf("Persist: %d %f %f\n", Persist.Count(), Persist.Mean()/MS, Persist.Percentile(0.9)/MS)
-	fmt.Printf("Dag&Other: %d %f %f\n", Dag.Count(), Dag.Mean()/MS, Dag.Percentile(0.9)/MS)
+	fmt.Printf("AddTimer: %d %f %f\n", AddTimer.Count(), AddTimer.Mean()/MS, AddTimer.Percentile(0.999)/MS)
+	fmt.Printf("Provide: %d %f %f\n", Provide.Count(), Provide.Mean()/MS, Provide.Percentile(0.999)/MS)
+	fmt.Printf("Persist: %d %f %f\n", Persist.Count(), Persist.Mean()/MS, Persist.Percentile(0.999)/MS)
+	fmt.Printf("Dag&Other: %d %f %f\n", Dag.Count(), Dag.Mean()/MS, Dag.Percentile(0.999)/MS)
 	if Persist.Count() == 0 {
 		return
 	}
@@ -440,6 +449,12 @@ func Output_Get() {
 	fmt.Printf(" BlocksRedundant: %d,     avg- %f, 0.9p- %f\n", BlocksRedundant.Sum(), BlocksRedundant.Mean(), BlocksRedundant.Percentile(0.9))
 	fmt.Printf(" RequestsRedundant: %d,     avg- %f, 0.9p- %f\n", RequestsRedundant.Sum(), RequestsRedundant.Mean(), RequestsRedundant.Percentile(0.9))
 
+	if PutStoreTime.Count() == 0 {
+		return
+	}
+	fmt.Printf("SyncTime: %d ,     avg- %f ms, 0.9p- %f ms \n", SyncTime.Count()/RealGet.Count(), SyncTime.Mean()/MS, SyncTime.Percentile(0.9)/MS)
+	fmt.Printf("DeduplicateOverhead: %d ,     avg- %f ms, 0.9p- %f ms \n", DeduplicateOverhead.Count()/RealGet.Count(), DeduplicateOverhead.Mean()/MS, DeduplicateOverhead.Percentile(0.9)/MS)
+
 }
 
 func Output_PeerRH() {
@@ -469,6 +484,7 @@ func Output_FP() {
 	fmt.Printf(" FPInnerNodes: %d ,     avg- %f, 0.9p- %f \n", FPInner.Count(), FPInner.Mean(), FPInner.Percentile(0.9))
 	fmt.Printf(" FPVariance: %d ,     avg- %f, 0.9p- %f \n", FPVariance.Count(), FPVariance.Mean()/1000000000, FPVariance.Percentile(0.9)/1000000000)
 
+	fmt.Printf("DataStore Put total size: %f MB, rate: %f MB/s\n", float64(DataStorePut.Sum())/1024/1024, float64(DataStorePut.Sum())/1024/1024/(time.Now().Sub(MetricsStartTime).Seconds()))
 }
 
 func call(skip int) {
@@ -530,4 +546,22 @@ func StandardOutput(function string, t metrics.Timer, filesize int) string {
 	throughput := float64(filesize) / 1024 / 1024 / (t.Mean() / 1000000000)
 	return fmt.Sprintf("%f %f %f\n", throughput, t.Mean()/1000000, t.Percentile(0.99)/MS)
 	// return fmt.Sprintf("%s: %d files, average latency: %f ms, 0.99P latency: %f ms\n", function, t.Count(), t.Mean()/MS, t.Percentile(float64(t.Count())*0.99)/MS)
+}
+
+func StramLevelDBStats(stat leveldb.DBStats) {
+	fmt.Printf("---------------------------------------------------------\n")
+	fmt.Printf("WriteDelayCount: %d\n", stat.WriteDelayCount)
+	fmt.Printf("WriteDelayDuration: %s\n", stat.WriteDelayDuration.String())
+	fmt.Printf("AliveSnapshots: %d\n", stat.AliveSnapshots)
+	fmt.Printf("AliveIterators: %d\n", stat.AliveIterators)
+	fmt.Printf("IOWrite: %d\n", stat.IOWrite)
+	fmt.Printf("IORead: %d\n", stat.IORead)
+	fmt.Printf("BlockCacheSize: %d\n", stat.BlockCacheSize)
+	fmt.Printf("OpenedTablesCount: %d\n", stat.OpenedTablesCount)
+	fmt.Printf("LevelSizes: %v\n", stat.LevelSizes)
+	fmt.Printf("LevelTablesCounts: %v\n", stat.LevelTablesCounts)
+	fmt.Printf("LevelRead: %v\n", stat.LevelRead)
+	fmt.Printf("LevelWrite: %v\n", stat.LevelWrite)
+	fmt.Printf("LevelDurations: %v\n", stat.LevelDurations)
+	fmt.Printf("----------------------------------------------------------\n")
 }

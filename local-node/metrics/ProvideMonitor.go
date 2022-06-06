@@ -12,6 +12,8 @@ var SuccessfullyProvide int
 var StartBackProvideTime time.Time
 var LastFewProvides *Queue //record the Min CPL in top K peers for last a few provides
 
+var QueryPeerTime = time.Second * 3
+
 func UpdateProvideMetric(StartProvideTime time.Time, key string) {
 	if !CMD_EnableMetrics {
 		return
