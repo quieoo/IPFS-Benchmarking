@@ -1,0 +1,145 @@
+-- Getting an IPFS node running -- 
+Spawning node on default repo
+2022/06/01 16:37:53 failed to sufficiently increase receive buffer size (was: 208 kiB, wanted: 2048 kiB, got: 416 kiB). See https://github.com/lucas-clemente/quic-go/wiki/UDP-Receive-Buffer-Size for details.
+open back provider
+IPFS node is running
+Load Neighbours to remove: [12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P]
+error while get Qmc1NpwkM3jr3xebtKf95spbgEGKhyfmEvjfW9deJSSUDc: context deadline exceeded
+Thread 0 get file QmaibtVbkbyKEijQ5NGCdXLzbqeP2kmLJUG1tJgtDGFcGK 11464.226946
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmVbmp2tTmz4ExfJrGoVZTtPNs6aMCA9j7ekoZNftBNsog 9139.317583
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmQCgy9AsnH2B4MXke6pRUz4EJxNG69scMERmVVygVMcwF 9220.779902
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmRnxUe67ZQzijC4C77vF2VSqCsZCVzSy7sdTYQz4uv21m 8857.920727
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmYELy9k5wY21RBfPh7KQZqveiTLfCryZyC37R1vzCSzQz 9421.818394
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmbFWBpyWgFNjP3zuxoCUhDjCFSdB1f7LHHBABcj2EB9uM 9798.936422
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmXRbozvGDXX5qUqrGygizG5wfxscduocfy5ve7YckATab 10394.968315
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmWsmdQcErHr1rR9b7HT3VZB2KX6TGSgGjkERzfVLEnDx9 9619.014981
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmUFvCCeFT4wjSNQesg81Nu1oDS9fsTrjnM7Wmh5x4Ynsc 9123.094963
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmYieDutXV8FcuiWhxdwiUPbjqg2eeLLk2BYvGfD3oK1Eg 11216.671388
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmaU9ZsxY7ExbCqvd3etTpzgrVD4bfigGoEfKooqBcQF79 9651.479764
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmcMyys4b8ZvBaugWj1UDoc2YrUgC4DhVc1jqKxRJVhFrP 8609.580563
+error while disconnect conn not found
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmUZj3jtGJUiMJ75jTA6sat6ffjP4UEdeZgRKDFzWSyJni 9459.912628
+error while disconnect conn not found
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmVz3K17XAb2kgfepHpyiXyZYDC1CJ4xGvCrK1AfzdYY5K 8640.456380
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmaqfjPMqgE6sgSyvhqXE42BpSB2HWMDXBhsTP1ji5tLg3 9835.962344
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmZJCRmUP25JzSuuJuvxdo1ZSBTk6Trv742kdBFSEiv4AE 11358.316766
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmUpjPUkzQnFkLG178FKfj9AprAMkimrhFxyaeBBcBQt7N 10041.640641
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmXZ4ypyRTg4Nitzhu4YrkLSEDJVQXGCtY5UwVvEzevtGY 9565.321499
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmYMu3cpUrvdv1HwTPzb4FKFq8TiVFF5HBEfe3P9bfJfVG 9259.525905
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmQcnRWsdP8Ej5BQRMACvqw9wXLFTXDLSTdKptX5rMjXbb 9016.629057
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmarYLMpSDYkKnH7hMJ3Dh7EB25UAbHV9GkhdpnKhLRGvT 9696.781203
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmbfviUX7NH494P36tziAbchRPVHoLZLU9WvzZMKqDM7gw 9266.066071
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmScz3NLqJfHqeujwWxKV7u4w6GBgRUmV631u9L4HZXasv 10317.823591
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmZHH3E3HvuvuQjR8tjswmqapWxUHiUiSYG5b5jyZhdUA5 9064.030379
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmW2Z7RFrM5G1dL9MLUkGtwmReKoB9PLury9v7tzmKmBf3 10667.422482
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmSZ7eDtZdHuhYqiRTa2H4exUnPy253VtNGPd5Snn9XcMN 10004.130470
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmeBocJDw8WC9vL3ZgmjUEZvMcXtPmhXV653iEC9dwiEHv 10599.597795
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmSNiwy9RaTW4dVxVCYsAcjC2L1zq42jpp7aQHHCEcYh2u 9635.939286
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmV8omxR6n3sDSqb5HDKzo2XtuGbCJTMobNkJW5y1qirNP 8967.151693
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmdjnvtuXVsGDBfSQ1wCXBAceWeexs8hRfaxhBTwfqVL5S 11062.112779
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmR7NHUdkHj9AaXMQaJL87NDLKJtuWp9ZSfdPUAUeH5GHC 8521.517598
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmaGiviY58wgvRnjGSVq19o9LEwUuyoF7Nd876QFAPCRP9 10365.356221
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmXxnwgPDjVRbbrQycUWsNFjC67jMuFbsAgveNeAXuaAQn 9661.822941
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmZ2pMc2UBTv5HvkqzbbxEUAxFZakhVwGqCeuWLQcbQYg9 9041.171754
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmRRGEUFLhAuebag9vtg8b3gcFbn3uWq7vS6e3dZ84hwmp 9179.489766
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmXiq8fKKTEMhF3ynE2GRQV69DzyPPyQcNm2w7nepW545d 9059.278216
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmdD8BmPtLj5uD1wUiZkvNciCEEBGKzrgT1FHSpi8W8z9k 10111.751187
+error while disconnect conn not found
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmXzfvnCdBLd7avJBTyo8WfJuvrbJUZXgTmXNrsNVMDoCE 9119.141882
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file Qmbcsc3AJQAKcJ3pfqkSzg3eYwiGWNfdbJgU42ArzXdwP3 9753.354612
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmfWvJESDsVbbFhV7WdAGSnSroR5mLkV5nNxRRNEf1dKJF 8810.658545
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmWWxtYr8EdwzAC6Mi3gg3xKZZLuS18eEjTq1f98qg5SMA 10244.255961
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmaKLgDcWk5mRdc5zqh7zqY6iEr14zAX9JMiCu6aSjS5p9 9324.450529
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmUsUj8uRTZm2ZVngqaf2PTAeYs4cXwuv2SRURVbvyLtVw 9386.409043
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmS58k25rfn5rHvcaPvrN5xhLRt2MD7U9qe1UGAFvjPP7k 10373.220175
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmYYKS6E4jULVudrGXnmWGzkMjs8arnXrqkd9ggrzpt2qa 9002.417014
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmTEo7itU2EgP2kzqDz5ydheZxcCgfGKrFtMEcETBCUEXV 9171.479505
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmTC9dPPh8dVdp8gmDs5NzfuU9FxSrnp9u1JMmoe7cZcVT 9857.187586
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmPHvy18i4tFM95bAwn6esY8ADBFgubmirt7N1T9J4rQTK 12515.463921
+error while disconnect conn not found
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+Thread 0 get file QmPbM895htyCvenLDVJ94rfBfMrgnp11tpbuVRjXUSiG3m 9281.402930
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+worker-0 0.411976 9709.313923 12515.462322
+-------------------------ADD-------------------------
+		avg(ms)    0.9p(ms)
+AddTimer: 0 0.000000 0.000000
+Provide: 0 0.000000 0.000000
+Persist: 0 0.000000 0.000000
+Dag&Other: 0 0.000000 0.000000
+-------------------------GET-------------------------
+ BlockServiceTime: 834 ,     avg- 1.041021 ms, 0.9p- 3.121814 ms 
+ RootNeighbourAskingTime: 49 ,     avg- 980.267343 ms, 0.9p- 1001.192615 ms 
+ RootFindProviderTime: 49 ,     avg- 664.010461 ms, 0.9p- 1191.253883 ms 
+ RootWaitToWantTime: 49 ,     avg- 935.867193 ms, 0.9p- 975.104432 ms 
+ LeafWaitToWantTime: 41 ,     avg- 1.160667 ms, 0.9p- 2.205837 ms 
+ BitswapTime: 833 ,     avg- 1859.371545 ms, 0.9p- 3389.133127 ms 
+ PutStoreTime: 833 ,     avg- 6.325527 ms, 0.9p- 6.648664 ms 
+ VisitTime: 833 ,     avg- 0.610872 ms, 0.9p- 0.495543 ms 
+ RealGet: 49 ,     avg- 9709.151022 ms, 0.9p- 11061.974973 ms 
+ ModelGet: 49 ,     avg- 9775.569536 ms, 0.9p- 10944.605616 ms 
+ Variance: 49 ,     avg- -0.008594, 0.9p- 0.065013 
+ GetNode: 49 ,     avg- 2810.620755 ms, 0.9p- 3309.417879 ms 
+ WriteTo: 49 ,     avg- 6898.525285 ms, 0.9p- 8318.718786 ms 
+ BlocksRedundant: 44,     avg- 0.897959, 0.9p- 1.000000
+ RequestsRedundant: 48,     avg- 0.979592, 0.9p- 2.000000
+-------------------------FindProvider-------------------------
+ ChoosePeer: 250 ,     avg- 85.459311 ms, 0.9p- 253.604070 ms 
+ DailPeer: 250 ,     avg- 258.864087 ms, 0.9p- 623.101256 ms 
+ ResponsePeer: 250 ,     avg- 298.866916 ms, 0.9p- 449.902950 ms 
+ RealFindProvider: 250 ,     avg- 646.385877 ms, 0.9p- 1300.309515 ms 
+ ModelFindProvider: 250 ,     avg- 645.625164 ms, 0.9p- 1299.595869 ms 
+ FPInnerNodes: 250 ,     avg- 1.664000, 0.9p- 3.000000 
+ FPVariance: 250 ,     avg- 0.001911, 0.9p- 0.003605 
+TimerPin-0: 0 ,     avg- 0.000000 ms, 0.9p- 0.000000 ms 
+TimerPin-1: 0 ,     avg- 0.000000 ms, 0.9p- 0.000000 ms 
+--------------------------DHT.Provide----------------------
+ProvideLatency: 65 ,     avg- 240988.063566 ms, 0.9p- 473914.209948 ms 
+ProvideThroughput: 8.151357 /min

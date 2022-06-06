@@ -1,0 +1,391 @@
+Preload PeerResponseHistory cache : 24024
+-- Getting an IPFS node running -- 
+Spawning node on default repo
+open back provider
+IPFS node is running
+Load Neighbours to remove: [12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P]
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 178573, miss 84943
+PRH: FindPeerHistory hit rate : 0.6776552467402359
+PRH: Cache size 8650
+PRH: Compromise 30824, AllCmp 131758, compromise rate: 0.2339440489382049
+Thread 0 get file QmUZ6NYe5CEh6pbg5NCeiYtPhqqjGikswg3afto85LiGbz 9266.308817
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 212798, miss 94468
+PRH: FindPeerHistory hit rate : 0.6925530322261493
+PRH: Cache size 8671
+PRH: Compromise 36016, AllCmp 153633, compromise rate: 0.2344288011039295
+Thread 0 get file Qmc9hVcG7hFA19npJ89B5RkdXLTuqo5WKPtY6q2MhqpDPJ 8873.012174
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 268877, miss 116174
+PRH: FindPeerHistory hit rate : 0.698289317518978
+PRH: Cache size 8673
+PRH: Compromise 46077, AllCmp 192531, compromise rate: 0.23932249871449274
+Thread 0 get file Qme2DdQ823teMvT5ofCdtpinqzJyU2iqE3vHhTBjWwKfxR 9054.958558
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 363758, miss 152666
+PRH: FindPeerHistory hit rate : 0.704378572645733
+PRH: Cache size 8696
+PRH: Compromise 63481, AllCmp 258212, compromise rate: 0.24584837265502765
+Thread 0 get file QmYogVE1unvPyXnFiQisG3hicf4TfwoNWbhEfUS3S5iFXZ 10097.026367
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 423135, miss 172597
+PRH: FindPeerHistory hit rate : 0.710277440191227
+PRH: Cache size 8725
+PRH: Compromise 74668, AllCmp 297866, compromise rate: 0.2506764786850463
+Thread 0 get file QmeYXU4qWevfepqAmWk48XLnfpSmTWvXygEkDH2axGzyKK 9101.622537
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 449409, miss 184915
+PRH: FindPeerHistory hit rate : 0.7084849382965173
+PRH: Cache size 8736
+PRH: Compromise 79652, AllCmp 317162, compromise rate: 0.25113979606636355
+Thread 0 get file QmX32aUdrVgQC6HvHXYV24zyjSrTn8XFSwUBQugtyVQuBr 7944.231644
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 565995, miss 249677
+PRH: FindPeerHistory hit rate : 0.6939002442158122
+PRH: Cache size 8768
+PRH: Compromise 99896, AllCmp 407840, compromise rate: 0.24493919183993723
+Thread 0 get file QmQNDF1RVJv6kSG3XqwsdPadTEtVXzULjaTUAQWKS7pVuW 8336.227318
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 698590, miss 326546
+PRH: FindPeerHistory hit rate : 0.6814608012985595
+PRH: Cache size 8828
+PRH: Compromise 124394, AllCmp 512568, compromise rate: 0.24268779947246025
+Thread 0 get file QmRjuRBtWgvBE9Jg3sLaP7tAvbbU5shNueSw3bRkLMhy1M 8248.452747
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 756018, miss 347866
+PRH: FindPeerHistory hit rate : 0.6848708741135844
+PRH: Cache size 8873
+PRH: Compromise 134300, AllCmp 551942, compromise rate: 0.24332266796148871
+Thread 0 get file QmT8pUViqS7eyQ9TGsXtLN5AqAGFedXTccgzoi3dSmtsG8 8879.410187
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 824877, miss 379091
+PRH: FindPeerHistory hit rate : 0.6851319968637041
+PRH: Cache size 8891
+PRH: Compromise 146986, AllCmp 601984, compromise rate: 0.24416928024665108
+Thread 0 get file QmRqrnrPNG7vBYSD5WjHXE4JnyXwb1c85p8q288TVRJD1S 8983.031147
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 880953, miss 399125
+PRH: FindPeerHistory hit rate : 0.688202593904434
+PRH: Cache size 8908
+PRH: Compromise 156576, AllCmp 640039, compromise rate: 0.2446350925490478
+Thread 0 get file QmXAgKvoXSiuQXYtHEfwLBAgqrpZHRc5a1UiQrvpf5VSFb 9342.144860
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 944550, miss 433668
+PRH: FindPeerHistory hit rate : 0.6853415062058397
+PRH: Cache size 8917
+PRH: Compromise 167954, AllCmp 689109, compromise rate: 0.24372631905837827
+Thread 0 get file QmPsTpGazwW56qxeL1FFqY2JpUrK6Sko2xHriKWAts2UWM 9921.892882
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 1045761, miss 478749
+PRH: FindPeerHistory hit rate : 0.6859653265639452
+PRH: Cache size 8945
+PRH: Compromise 186969, AllCmp 762255, compromise rate: 0.24528405848436546
+Thread 0 get file QmVF5b54j4mrz3dy3fFscPiubKgX93TbZk95R5nVnGArjE 10518.582452
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 1160789, miss 526271
+PRH: FindPeerHistory hit rate : 0.688054366768224
+PRH: Cache size 8972
+PRH: Compromise 208272, AllCmp 843530, compromise rate: 0.24690526715113867
+Thread 0 get file QmYxsThDDARXxSinET1BbTPehxzpZLZ3mg6f1eRto4hj97 9077.805216
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 1234007, miss 559591
+PRH: FindPeerHistory hit rate : 0.6880064540660727
+PRH: Cache size 8988
+PRH: Compromise 221880, AllCmp 896799, compromise rate: 0.24741329997022743
+Thread 0 get file QmTFWYQzNVpyyfVLRoWMeMi32i7ttm4mZXh3RdkqxBKgwH 8263.073437
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 1347696, miss 613252
+PRH: FindPeerHistory hit rate : 0.6872675869018454
+PRH: Cache size 9032
+PRH: Compromise 242342, AllCmp 980474, compromise rate: 0.2471682063981299
+Thread 0 get file QmdB1qqGdnnoMJethK3XoZJpphSarfpUAPUwQG7rtcDU4y 9704.803464
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 1428365, miss 653953
+PRH: FindPeerHistory hit rate : 0.6859495043504402
+PRH: Cache size 9055
+PRH: Compromise 257002, AllCmp 1041159, compromise rate: 0.24684222102483866
+Thread 0 get file QmaYV2kNMchMcihZv5RLVKY32CLegQQX2gfh5ABegQ5z9G 9746.495538
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 1499355, miss 684331
+PRH: FindPeerHistory hit rate : 0.6866165739946127
+PRH: Cache size 9082
+PRH: Compromise 269737, AllCmp 1091843, compromise rate: 0.24704742348487832
+Thread 0 get file QmUBmBuUxqxCmBHNjSSpwUKgBYyAW7d8xBmGoE4kGJkWLb 9659.028237
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 1528081, miss 706453
+PRH: FindPeerHistory hit rate : 0.6838477284301783
+PRH: Cache size 9109
+PRH: Compromise 274935, AllCmp 1117267, compromise rate: 0.24607815320778292
+Thread 0 get file QmSkbsradbj8xFcSXaj9BQYzHESM4nqzmgm535kiNbVUc8 8837.468148
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 1638274, miss 751226
+PRH: FindPeerHistory hit rate : 0.6856137267210713
+PRH: Cache size 9120
+PRH: Compromise 295095, AllCmp 1194750, compromise rate: 0.24699309478970496
+Thread 0 get file QmQTQqg5HaZbKmjhMdF8hqQQTGSrjGCnq6r4j255jQda7d 10391.581217
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 1701717, miss 775997
+PRH: FindPeerHistory hit rate : 0.6868092927593742
+PRH: Cache size 9144
+PRH: Compromise 306523, AllCmp 1238857, compromise rate: 0.2474240368339526
+Thread 0 get file QmeWK9E5Ya2g6jGZ7APx7zstZ7er9NJetfs79JRf2FvVUR 9199.744861
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 1802114, miss 823926
+PRH: FindPeerHistory hit rate : 0.6862477342310094
+PRH: Cache size 9166
+PRH: Compromise 325941, AllCmp 1313020, compromise rate: 0.2482376506069976
+Thread 0 get file QmdeCE96BjJ3Fr6jmEtnNvXq6E3V5pXh4tB1qLGQ9zHgXp 8508.618001
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 1898511, miss 866803
+PRH: FindPeerHistory hit rate : 0.68654445751911
+PRH: Cache size 9219
+PRH: Compromise 344226, AllCmp 1382657, compromise rate: 0.24895979263114423
+Thread 0 get file QmaHZssRdVYXuURGrALsqQxdtQiKMCY6nRcnqbbCLgJRih 10653.432502
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 1979831, miss 903323
+PRH: FindPeerHistory hit rate : 0.6866892992882101
+PRH: Cache size 9228
+PRH: Compromise 359609, AllCmp 1441577, compromise rate: 0.2494552840396316
+Thread 0 get file QmRRvJGkyUwUN3j4Ra3R3YbBY9w2JF5autQ6tiLvx8ECwE 8748.680115
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 2013331, miss 921603
+PRH: FindPeerHistory hit rate : 0.6859885094520013
+PRH: Cache size 9260
+PRH: Compromise 366205, AllCmp 1467467, compromise rate: 0.24954905289181972
+Thread 0 get file QmfBrKxoVEEzMBk9CFK73rfGbWReiq7bah3XMLya8p89nx 9754.235112
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 2039038, miss 934010
+PRH: FindPeerHistory hit rate : 0.6858409282325748
+PRH: Cache size 9302
+PRH: Compromise 370454, AllCmp 1486524, compromise rate: 0.24920821998164847
+Thread 0 get file Qmb9eDDmWJrNdvyidMHe3NPVENYLu7kkuVtZCDgFXGGmSt 7971.659821
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 2092007, miss 946253
+PRH: FindPeerHistory hit rate : 0.6885543041082725
+PRH: Cache size 9310
+PRH: Compromise 378733, AllCmp 1519130, compromise rate: 0.24930914404955468
+Thread 0 get file QmVHWv9dMphXMXLSPq3H3AiJBjamZ6fo9E2VKYVtuFDBih 9568.228426
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 2147934, miss 971950
+PRH: FindPeerHistory hit rate : 0.6884659814275146
+PRH: Cache size 9332
+PRH: Compromise 389104, AllCmp 1559942, compromise rate: 0.2494349148878612
+Thread 0 get file QmX6eLkeJBoA3Dg8meoLpXoDLrDn31LnsTVodvrfeobWQa 9797.920325
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 2191647, miss 987643
+PRH: FindPeerHistory hit rate : 0.6893510815307821
+PRH: Cache size 9352
+PRH: Compromise 396594, AllCmp 1589645, compromise rate: 0.24948589150407796
+Thread 0 get file QmVfHjtXA6RfJRHCqAZcgDbWrrtZSyQzGqyQF2ffHYHUrh 9027.083766
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 2270932, miss 1014942
+PRH: FindPeerHistory hit rate : 0.6911196229678923
+PRH: Cache size 9382
+PRH: Compromise 410153, AllCmp 1642937, compromise rate: 0.24964621284930585
+Thread 0 get file QmVK2Pk23v2zUhzVCcvGHhrG6zoDMVYSFmDaVoiZ1Yto4v 10471.707263
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 2318503, miss 1027035
+PRH: FindPeerHistory hit rate : 0.6930135003697462
+PRH: Cache size 9391
+PRH: Compromise 417908, AllCmp 1672769, compromise rate: 0.24983007217374306
+Thread 0 get file Qmb16JfCW7zWrYwCHNnVjNRWNUS9dW9xZFCB6FrDvdXJ1P 8879.585375
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 2415674, miss 1065705
+PRH: FindPeerHistory hit rate : 0.6938842338050525
+PRH: Cache size 9409
+PRH: Compromise 434828, AllCmp 1740696, compromise rate: 0.24980122893371387
+Thread 0 get file QmcKeHn2Rm2UmiiMmbxssJ8jiUBeSvnKatMZEituQ8ej5T 8953.177446
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 2506835, miss 1109231
+PRH: FindPeerHistory hit rate : 0.6932492382605848
+PRH: Cache size 9438
+PRH: Compromise 451387, AllCmp 1808033, compromise rate: 0.249656394545896
+Thread 0 get file QmUapGJGc27rjHXsqmukyG1w86Bs8qCE26Sj2miH33pt2f 9014.032958
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 2671980, miss 1184610
+PRH: FindPeerHistory hit rate : 0.6928348618857592
+PRH: Cache size 9469
+PRH: Compromise 481427, AllCmp 1928295, compromise rate: 0.24966460007415878
+Thread 0 get file QmR5XiRMNtX9fSLzs3EGrMATDTBt6ohwY7U6zT3fL1257J 10367.525305
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 2759815, miss 1218873
+PRH: FindPeerHistory hit rate : 0.6936495146138627
+PRH: Cache size 9482
+PRH: Compromise 497795, AllCmp 1989349, compromise rate: 0.25023010039967847
+Thread 0 get file QmdFV3FfuXgZovNDf5cxJnuMvxc4DRLSz4LKokFsYRBKMA 8804.487139
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 2874020, miss 1265790
+PRH: FindPeerHistory hit rate : 0.6942395907058536
+PRH: Cache size 9493
+PRH: Compromise 519517, AllCmp 2069905, compromise rate: 0.25098591481251553
+Thread 0 get file QmWaNJxmvzztWAwKMow3a51whW6GPgqdDRtJA4c5umrK3g 9715.132112
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 2930304, miss 1289996
+PRH: FindPeerHistory hit rate : 0.6943354737814847
+PRH: Cache size 9517
+PRH: Compromise 528932, AllCmp 2110150, compromise rate: 0.25066085349382744
+Thread 0 get file QmYJCpUsQm6Z2QZXyAe5vgyEKrhfbcwbJ2VvcBKSP9e1QB 9256.273104
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 2990246, miss 1321287
+PRH: FindPeerHistory hit rate : 0.6935458919136187
+PRH: Cache size 9558
+PRH: Compromise 540362, AllCmp 2155767, compromise rate: 0.2506588142410567
+Thread 0 get file QmZJuwZ5KDfjFui4VgXv6F29b5Hp2PBXfGb6T7LL2yuhZf 8259.207817
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 3099580, miss 1364762
+PRH: FindPeerHistory hit rate : 0.6942971663013273
+PRH: Cache size 9569
+PRH: Compromise 559769, AllCmp 2232171, compromise rate: 0.25077335024960007
+Thread 0 get file QmY392ERbDJGkqLVLpREjGMUY9nX6HKbPHF2iVDjSFeDB9 9674.146279
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 3309365, miss 1444805
+PRH: FindPeerHistory hit rate : 0.6960973208783027
+PRH: Cache size 9608
+PRH: Compromise 599808, AllCmp 2377085, compromise rate: 0.2523292183493649
+Thread 0 get file QmW1Di1hiVvXPaNoF9tmWHDX3NzpALVmZ8jCy6bn19EW5H 12583.846829
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 3477258, miss 1509114
+PRH: FindPeerHistory hit rate : 0.6973523034382513
+PRH: Cache size 9636
+PRH: Compromise 632665, AllCmp 2493186, compromise rate: 0.25375764182856797
+Thread 0 get file QmYF3aRpVY4KAq8nHnMHfzpcbFm2RviecUHVCmAQC6r29g 9048.038395
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 3632945, miss 1561765
+PRH: FindPeerHistory hit rate : 0.6993547281753938
+PRH: Cache size 9661
+PRH: Compromise 662275, AllCmp 2597355, compromise rate: 0.2549805475185333
+Thread 0 get file QmR6oqx3Lwe9GkVJe6Tn8VHA3614VTKVjie1H8HeCaYP2w 8978.479448
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 3712672, miss 1587618
+PRH: FindPeerHistory hit rate : 0.7004658235681444
+PRH: Cache size 9687
+PRH: Compromise 676416, AllCmp 2650145, compromise rate: 0.2552373549371827
+Thread 0 get file QmNQvTvgPW1Pq2pYcckW47tzsc5uEWAu3sDsCaaEyBeLvh 9356.067365
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 3794672, miss 1614544
+PRH: FindPeerHistory hit rate : 0.7015197766182751
+PRH: Cache size 9701
+PRH: Compromise 690168, AllCmp 2704608, compromise rate: 0.25518226670926064
+Thread 0 get file Qmef1d9QPK4Bjeo6fEXmP43nvfWj5nHNUbYSVAVSTwP36x 9519.840858
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 3835458, miss 1630712
+PRH: FindPeerHistory hit rate : 0.7016719201927493
+PRH: Cache size 9737
+PRH: Compromise 697536, AllCmp 2733085, compromise rate: 0.2552192851667621
+Thread 0 get file QmQJsA7mmGZrxQMrhT4Rp2cY4ZAUeCvuBFkqrkvmzqS3Rx 10202.962362
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 3851593, miss 1633525
+PRH: FindPeerHistory hit rate : 0.7021896338419702
+PRH: Cache size 9741
+PRH: Compromise 699964, AllCmp 2742559, compromise rate: 0.25522295053634214
+Thread 0 get file QmeYViX8Gsscdubjgn5bioWMok3ryFJB1US4kNMpCwDDZ8 11457.396071
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 3935103, miss 1668049
+PRH: FindPeerHistory hit rate : 0.7023016687750038
+PRH: Cache size 9776
+PRH: Compromise 714885, AllCmp 2801576, compromise rate: 0.2551724457947955
+Thread 0 get file QmWWCBjrCMFRb9RBX4gdq5gjWYksksZb6RhupHts5KbVc5 9807.115546
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 3980365, miss 1686321
+PRH: FindPeerHistory hit rate : 0.7024149564666191
+PRH: Cache size 9802
+PRH: Compromise 723379, AllCmp 2833343, compromise rate: 0.25530936423863965
+Thread 0 get file QmTchcLFvppyEGSs1oPBscBedyqS7u7wimCsAZa1F5pjs9 9558.645466
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 4080372, miss 1716144
+PRH: FindPeerHistory hit rate : 0.70393526042195
+PRH: Cache size 9808
+PRH: Compromise 740078, AllCmp 2898258, compromise rate: 0.255352698068978
+Thread 0 get file QmVYYihUqn6GR2oc6cAHyY9nEcb3oEgt9LtuvPQhMDVFWJ 9115.745000
+succeed to disconnect: 12D3KooWJzyALnC9trKzCNQxcZt8VS4zUtv3fQvr8zfPKfcnP62P
+worker-0 0.425626 9397.921810 12583.820132
+Store PeerResponseHistory cache : 9808
+-------------------------ADD-------------------------
+		avg(ms)    0.9p(ms)
+AddTimer: 0 0.000000 0.000000
+Provide: 0 0.000000 0.000000
+Persist: 0 0.000000 0.000000
+Dag&Other: 0 0.000000 0.000000
+-------------------------GET-------------------------
+ BlockServiceTime: 833 ,     avg- 0.847856 ms, 0.9p- 2.037885 ms 
+ RootNeighbourAskingTime: 49 ,     avg- 1000.633982 ms, 0.9p- 1001.123492 ms 
+ RootFindProviderTime: 49 ,     avg- 787.973030 ms, 0.9p- 1339.813905 ms 
+ RootWaitToWantTime: 49 ,     avg- 914.620455 ms, 0.9p- 940.705825 ms 
+ LeafWaitToWantTime: 42 ,     avg- 2.328928 ms, 0.9p- 2.959927 ms 
+ BitswapTime: 833 ,     avg- 1811.550704 ms, 0.9p- 3312.453940 ms 
+ PutStoreTime: 833 ,     avg- 5.255341 ms, 0.9p- 6.549554 ms 
+ VisitTime: 833 ,     avg- 0.454748 ms, 0.9p- 0.480269 ms 
+ RealGet: 49 ,     avg- 9397.790918 ms, 0.9p- 10471.571232 ms 
+ ModelGet: 49 ,     avg- 9580.220423 ms, 0.9p- 10465.338140 ms 
+ Variance: 49 ,     avg- -0.023792, 0.9p- 0.075819 
+ GetNode: 49 ,     avg- 2896.650640 ms, 0.9p- 3461.971249 ms 
+ WriteTo: 49 ,     avg- 6501.136107 ms, 0.9p- 7460.706982 ms 
+ BlocksRedundant: 37,     avg- 0.755102, 0.9p- 1.000000
+ RequestsRedundant: 31,     avg- 0.632653, 0.9p- 2.000000
+-------------------------FindProvider-------------------------
+ ChoosePeer: 67 ,     avg- 49.601770 ms, 0.9p- 161.637566 ms 
+ DailPeer: 67 ,     avg- 394.585565 ms, 0.9p- 584.455537 ms 
+ ResponsePeer: 67 ,     avg- 303.672613 ms, 0.9p- 479.137279 ms 
+ RealFindProvider: 67 ,     avg- 750.063204 ms, 0.9p- 1117.430976 ms 
+ ModelFindProvider: 67 ,     avg- 749.094761 ms, 0.9p- 1116.305382 ms 
+ FPInnerNodes: 67 ,     avg- 1.791045, 0.9p- 3.000000 
+ FPVariance: 67 ,     avg- 0.002312, 0.9p- 0.004472 
+-------------------------PeerResponseHistory-------------------------
+PRH: FindPeerHistory hit 4080520, miss 1716164
+PRH: FindPeerHistory hit rate : 0.7039403907475378
+PRH: Cache size 9808
+PRH: Compromise 740102, AllCmp 2898342, compromise rate: 0.2553535780111526
+TimerPin-0: 0 ,     avg- 0.000000 ms, 0.9p- 0.000000 ms 
+TimerPin-1: 0 ,     avg- 0.000000 ms, 0.9p- 0.000000 ms 
+--------------------------DHT.Provide----------------------
+ProvideLatency: 58 ,     avg- 242814.442577 ms, 0.9p- 453279.439900 ms 
+ProvideThroughput: 7.596759 /min

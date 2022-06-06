@@ -1,0 +1,69 @@
+generating ED25519 keypair...done
+peer identity: 12D3KooWCUp3Sx8wyrS9azmCtD67WKY44ofhgg2Mx8TKY1FyrXJE
+initializing IPFS node at /home/benchmark/.ipfs
+to get started, enter:
+
+	ipfs cat /ipfs/QmQPeNsJPyVWPFDVHb77w8G42Fvo15z4bG2X8D2GhfbSXc/readme
+
+2022-06-02T20:36:22.217+0800	[31mERROR[0m	provider.queue	queue/queue.go:124	Failed to enqueue cid: leveldb: closed
+2022/06/02 20:36:22 failed to sufficiently increase receive buffer size (was: 208 kiB, wanted: 2048 kiB, got: 416 kiB). See https://github.com/lucas-clemente/quic-go/wiki/UDP-Receive-Buffer-Size for details.
+generating ED25519 keypair...done
+peer identity: 12D3KooWFMqsxNdJoDKHFEA737SjhbeckuiHAGgu5zSehSFW2H6m
+initializing IPFS node at /home/benchmark/.ipfs
+to get started, enter:
+
+	ipfs cat /ipfs/QmQPeNsJPyVWPFDVHb77w8G42Fvo15z4bG2X8D2GhfbSXc/readme
+
+2022-06-02T20:52:22.542+0800	[31mERROR[0m	provider.queue	queue/queue.go:124	Failed to enqueue cid: leveldb: closed
+2022/06/02 20:52:22 failed to sufficiently increase receive buffer size (was: 208 kiB, wanted: 2048 kiB, got: 416 kiB). See https://github.com/lucas-clemente/quic-go/wiki/UDP-Receive-Buffer-Size for details.
+generating ED25519 keypair...done
+peer identity: 12D3KooWGvJWJzGTMGk2trL4P3zG2nfrcpcUci2PQ93zi1JaXgeW
+initializing IPFS node at /home/benchmark/.ipfs
+to get started, enter:
+
+	ipfs cat /ipfs/QmQPeNsJPyVWPFDVHb77w8G42Fvo15z4bG2X8D2GhfbSXc/readme
+
+2022/06/02 21:08:11 failed to sufficiently increase receive buffer size (was: 208 kiB, wanted: 2048 kiB, got: 416 kiB). See https://github.com/lucas-clemente/quic-go/wiki/UDP-Receive-Buffer-Size for details.
+generating ED25519 keypair...done
+peer identity: 12D3KooWSLpq8XxS9PseqcV1AR8M5xdyAVrNRHG1p6q5TNUdDy5r
+initializing IPFS node at /home/benchmark/.ipfs
+to get started, enter:
+
+	ipfs cat /ipfs/QmQPeNsJPyVWPFDVHb77w8G42Fvo15z4bG2X8D2GhfbSXc/readme
+
+2022-06-02T21:23:51.259+0800	[31mERROR[0m	provider.queue	queue/queue.go:124	Failed to enqueue cid: leveldb: closed
+2022/06/02 21:23:51 failed to sufficiently increase receive buffer size (was: 208 kiB, wanted: 2048 kiB, got: 416 kiB). See https://github.com/lucas-clemente/quic-go/wiki/UDP-Receive-Buffer-Size for details.
+generating ED25519 keypair...done
+peer identity: 12D3KooWFKoTJbohUPyetdVg5j3EKEJJtbuWiEs5FRBecNUezKRq
+initializing IPFS node at /home/benchmark/.ipfs
+to get started, enter:
+
+	ipfs cat /ipfs/QmQPeNsJPyVWPFDVHb77w8G42Fvo15z4bG2X8D2GhfbSXc/readme
+
+2022/06/02 21:39:47 failed to sufficiently increase receive buffer size (was: 208 kiB, wanted: 2048 kiB, got: 416 kiB). See https://github.com/lucas-clemente/quic-go/wiki/UDP-Receive-Buffer-Size for details.
+generating ED25519 keypair...done
+peer identity: 12D3KooWHe5diK8mVc9eyUSbNnYPy73XviwqzFEzZVfEBMknGQv2
+initializing IPFS node at /home/benchmark/.ipfs
+to get started, enter:
+
+	ipfs cat /ipfs/QmQPeNsJPyVWPFDVHb77w8G42Fvo15z4bG2X8D2GhfbSXc/readme
+
+2022/06/02 21:55:09 failed to sufficiently increase receive buffer size (was: 208 kiB, wanted: 2048 kiB, got: 416 kiB). See https://github.com/lucas-clemente/quic-go/wiki/UDP-Receive-Buffer-Size for details.
+generating ED25519 keypair...done
+peer identity: 12D3KooWQdzKSSZ8vxjJxYort2zhN1SgKpvPoxzXfs5ZmQ6hE4Kv
+initializing IPFS node at /home/benchmark/.ipfs
+to get started, enter:
+
+	ipfs cat /ipfs/QmQPeNsJPyVWPFDVHb77w8G42Fvo15z4bG2X8D2GhfbSXc/readme
+
+2022-06-02T22:10:25.732+0800	[31mERROR[0m	provider.queue	queue/queue.go:124	Failed to enqueue cid: leveldb: closed
+2022/06/02 22:10:26 failed to sufficiently increase receive buffer size (was: 208 kiB, wanted: 2048 kiB, got: 416 kiB). See https://github.com/lucas-clemente/quic-go/wiki/UDP-Receive-Buffer-Size for details.
+generating ED25519 keypair...done
+peer identity: 12D3KooWEt1fuHHgrqaQBrennaVgodxsCQ79QgSEYhMhCRuoTQ18
+initializing IPFS node at /home/benchmark/.ipfs
+to get started, enter:
+
+	ipfs cat /ipfs/QmQPeNsJPyVWPFDVHb77w8G42Fvo15z4bG2X8D2GhfbSXc/readme
+
+2022-06-02T23:20:47.048+0800	[31mERROR[0m	provider.queue	queue/queue.go:124	Failed to enqueue cid: leveldb: closed
+2022/06/02 23:20:47 failed to sufficiently increase receive buffer size (was: 208 kiB, wanted: 2048 kiB, got: 416 kiB). See https://github.com/lucas-clemente/quic-go/wiki/UDP-Receive-Buffer-Size for details.
