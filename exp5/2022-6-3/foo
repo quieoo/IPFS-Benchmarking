@@ -1,9 +1,0 @@
-generating ED25519 keypair...done
-peer identity: 12D3KooWCUp3Sx8wyrS9azmCtD67WKY44ofhgg2Mx8TKY1FyrXJE
-initializing IPFS node at /home/benchmark/.ipfs
-to get started, enter:
-
-	ipfs cat /ipfs/QmQPeNsJPyVWPFDVHb77w8G42Fvo15z4bG2X8D2GhfbSXc/readme
-
-2022-06-02T20:36:22.217+0800	[31mERROR[0m	provider.queue	queue/queue.go:124	Failed to enqueue cid: leveldb: closed
-2022/06/02 20:36:22 failed to sufficiently increase receive buffer size (was: 208 kiB, wanted: 2048 kiB, got: 416 kiB). See https://github.com/lucas-clemente/quic-go/wiki/UDP-Receive-Buffer-Size for details.
