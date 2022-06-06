@@ -343,9 +343,8 @@ func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, ci
 		}
 
 		//finish
-		if !metrics.CMD_StallAfterUpload {
-			stallchan <- i
-		}
+		stallchan <- i
+
 	}
 	for i := 0; i < coreNumber; i++ {
 		go sendFunc(i)
@@ -359,13 +358,21 @@ func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, ci
 			stalls--
 			if stalls <= 0 {
 				cidFile.Close()
+				if metrics.CMD_StallAfterUpload {
+					fmt.Println("Finish Front-End")
+					sigChan := make(chan os.Signal)
+					signal.Notify(sigChan, os.Interrupt, os.Kill, syscall.SIGTERM)
+					select {
+					case <-sigChan:
+					}
+				}
 				return
 			}
 		}
 	}
 }
 
-func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bool, np string, concurrentGet int) {
+func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bool, np string, concurrentGet int, sad bool) {
 	//peers to remove after each get
 	neighbours, err := LocalNeighbour(np)
 	if err != nil || len(neighbours) == 0 {
@@ -411,13 +418,16 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 	}
 	var wg sync.WaitGroup
 	wg.Add(concurrentGet)
+	if sad {
+		wg.Add(1)
+	}
 	for i := 0; i < concurrentGet; i++ {
 		go func(theOrder int) {
 			defer wg.Done()
 			downTimer := gometrcs.NewTimer()
 			fileSize := int64(0)
 			for j := 0; j < len(fileCid[theOrder]); j++ {
-				ctx_time, _ := context.WithTimeout(ctx, 60*time.Second)
+				ctx_time, _ := context.WithTimeout(ctx, 60*time.Minute)
 				cid := fileCid[theOrder][j]
 				p := icorepath.New(cid)
 				start := time.Now()
@@ -468,22 +478,21 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 				// DO NOT WORK
 				//DisconnectAllPeers(ctx, ipfs)
 				//remove neighbours
-				/*
-					if len(neighbours) != 0 {
-						for _, n := range neighbours {
-							//fmt.Printf("try to disconnect from %s\n", n)
-							err := DisconnectAllPeers(ctx, ipfs, n)
-							if err != nil {
-								fmt.Printf("failed to disconnect: %v\n", err)
-							}
+
+				if len(neighbours) != 0 {
+					for _, n := range neighbours {
+						//fmt.Printf("try to disconnect from %s\n", n)
+						err := DisconnectAllPeers(ctx, ipfs, n)
+						if err != nil {
+							fmt.Printf("failed to disconnect: %v\n", err)
 						}
-					}*/
+					}
+				}
 			}
 			fmt.Printf("worker-%d %s", theOrder, metrics.StandardOutput("ipfs-download", downTimer, int(fileSize)))
 		}(i)
 	}
 	wg.Wait()
-
 }
 
 func TraceUpload(index int, servers int, trace_docs string, chunker string, ipfs icore.CoreAPI, ctx context.Context) {
@@ -725,6 +734,8 @@ func main() {
 	var traceFile string
 	var downloadNumber int
 
+	var stallafterdownload = false
+
 	flag.IntVar(&redun_rate, "redun", 0, "The redundancy of the file when Benchmarking upload, 100 indicates that there is exactly the same file in the node, 0 means there is no existence of same file.(default 0)")
 	flag.StringVar(&cmd, "c", "", "operation type\n"+
 		"upload: upload files to ipfs, with -s for file size, -n for file number, -p for concurrent upload threads, -cid for specified uploaded file cid stored\n"+
@@ -776,6 +787,8 @@ func main() {
 		"Note that if enable pbitswap the metrics will be no longer accurate.")
 	flag.Float64Var(&(metrics.B), "B", 1e70, "parameter for ax + by")
 
+	flag.BoolVar(&stallafterdownload, "sad", false, "stall after download")
+
 	flag.Parse()
 
 	// NOTE: check the concurrentGet.
@@ -815,11 +828,17 @@ func main() {
 		sublogs := strings.Split(seelogs, "-")
 		fmt.Println("See logs: ")
 		for _, s := range sublogs {
+			fmt.Println("--" + s)
 			if s == "getbreakdown" {
 				metrics.GetBreakDownLog = true
 				continue
 			}
-			fmt.Println("--" + s)
+			if s == "seecpl" {
+				metrics.CPLInDHTQureyLog = true
+				logging.SetLogLevel(s, "debug")
+				continue
+			}
+
 			err := logging.SetLogLevel(s, "debug")
 			if err != nil {
 				fmt.Println("failed to set log level of: " + s + " ." + err.Error())
@@ -841,7 +860,7 @@ func main() {
 	if cmd == "downloads" {
 		ctx, ipfs, cancel := Ini()
 		defer cancel()
-		DownloadSerial(ctx, ipfs, cidfile, provideAfterGet, rmNeighbourPath, concurrentGet)
+		DownloadSerial(ctx, ipfs, cidfile, provideAfterGet, rmNeighbourPath, concurrentGet, stallafterdownload)
 		return
 	}
 	if cmd == "daemon" {
