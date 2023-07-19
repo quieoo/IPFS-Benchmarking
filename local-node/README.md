@@ -1,3 +1,5 @@
+GO1.15 is recommanded.
+
 build ipfs node
 ````
 cd go-ipfs
