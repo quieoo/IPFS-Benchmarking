@@ -11,6 +11,13 @@ cd local-node
 go build
 ````
 
+Initialize IPFS repo
+````
+./init.sh
+````
+
+
+
 usage:
 ````
 localIPFSNode runs on a default path of ipfs (~/.ipfs), assuming that a repo exists there already. And if necessary, periodly clean the path during benchmarking.
