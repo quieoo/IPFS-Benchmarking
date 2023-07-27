@@ -5,13 +5,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
+	"time"
+
 	"github.com/ipfs/go-cid"
 	format "github.com/ipfs/go-ipld-format"
 	logging "github.com/ipfs/go-log"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/routing"
-	"sync"
-	"time"
 )
 
 var logger = logging.Logger("pbitswap")
@@ -176,7 +177,7 @@ func (d *Dispatcher) Dispatch3(visit format.Visitor) error {
 		//d.monitor.collect()
 		// MyTracker.UpdateVariance(d.monitor.GetEffectsVariance())
 	}()
-	//fmt.Printf("%s dispatch %s\n",time.Now().String(),d.path[0].GetIPLDNode().Cid())
+	// fmt.Printf("%s dispatch %s\n", time.Now().String(), d.path[0].GetIPLDNode().Cid())
 	err := visit(d.path[0])
 	if err != nil {
 		return err
@@ -225,7 +226,12 @@ func (d *Dispatcher) Dispatch3(visit format.Visitor) error {
 					}
 					//fmt.Printf("provider find %s\n", prov.ID)
 					fullprovider = append(fullprovider, prov.ID)
-					providers <- prov.ID
+					select {
+					case providers <- prov.ID:
+					default:
+						fmt.Printf("provider chan already closed\n")
+					}
+
 				}
 			}
 		nextfinder:
@@ -249,7 +255,7 @@ func (d *Dispatcher) Dispatch3(visit format.Visitor) error {
 					return false
 				}
 				for _, prov := range provs {
-					//fmt.Printf("co-worker find2 %s\n", prov)
+					// fmt.Printf("co-worker find2 %s\n", prov)
 					providers <- prov
 				}
 				return true

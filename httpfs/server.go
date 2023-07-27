@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const filePath = "files"
@@ -162,7 +163,7 @@ func main() {
 	} else if cmd == "upload" {
 		fn, _ := os.Create("filenames")
 		fmt.Printf("Uploading files with size %d B\n", fileSize)
-
+		start := time.Now()
 		for i := 0; i < fileNumber; i++ {
 			if i%100 == 0 {
 				fmt.Printf("uploading %d %d \n", i, fileNumber)
@@ -184,7 +185,7 @@ func main() {
 				}
 			}
 		}
-		fmt.Printf("finished upload\n")
+		fmt.Printf("finished upload, latecy: %f ms, throughput: %f MB/s\n", float64(time.Now().Sub(start).Milliseconds())/float64(fileNumber), float64(fileNumber*fileSize)/float64(1024*1024)/float64(time.Now().Sub(start).Seconds()))
 		fn.Close()
 	}
 	http.HandleFunc("/upload", uploadHandler)

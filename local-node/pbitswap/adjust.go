@@ -276,9 +276,14 @@ func (da *DynamicAdjuster) Adjust5(hr float64, d time.Duration, n int) int {
 	currentEfficiency := float64(n) / d.Seconds()
 	logger.Debugf("current efficiency: %f blk/s \n", currentEfficiency)
 	//update status
-	x := da.averageEfficiency[da.L]
-	x.in(currentEfficiency)
-	da.averageEfficiency[da.L] = x
+	x, exist := da.averageEfficiency[da.L]
+	if exist {
+		x.in(currentEfficiency)
+		_, exist := da.averageEfficiency[da.L]
+		if exist {
+			da.averageEfficiency[da.L] = x
+		}
+	}
 
 	if da.lastEfficiency > currentEfficiency*1.5 {
 		da.L = da.L / 2

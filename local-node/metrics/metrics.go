@@ -3,12 +3,13 @@ package metrics
 import (
 	"bufio"
 	"fmt"
-	"github.com/rcrowley/go-metrics"
-	"github.com/syndtr/goleveldb/leveldb"
 	"os"
 	"runtime"
 	"sync"
 	"time"
+
+	"github.com/rcrowley/go-metrics"
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
 // some global flag
@@ -26,7 +27,9 @@ var ProviderWorker = 8
 var CMD_EarlyAbort = false
 var EarlyAbortCheck = 5
 var CMD_PeerRH = false
-var CMD_LoadSaveCache = false
+var CMD_NoneNeighbourAsking = false
+
+// var CMD_LoadSaveCache = false
 var EnablePbitswap = false
 
 var BlockSizeLimit = 1 * 1024 * 1024
@@ -255,11 +258,6 @@ func TimersInit() {
 	SuccessfullyProvide = 0
 	StartBackProvideTime = ZeroTime
 
-	// 假设一个cacheline 需要 200 个字节，那么我们让最多设置 5e6 个 cacheline
-	// 此时需要 1GB 内存，为了测试方便，我们先设置如上个数
-	GPeerRH = NewPeerRH(1, B, 5*1e6) // 历史信息不起作用
-	//GPeerRH = NewPeerRH(1, 1) // 历史信息与逻辑距离 1:1
-
 	DataStorePut = metrics.NewHistogram(metrics.NewExpDecaySample(1028, 0.015))
 
 }
@@ -458,7 +456,9 @@ func Output_Get() {
 }
 
 func Output_PeerRH() {
-
+	if !CMD_PeerRH {
+		return
+	}
 	hit := GPeerRH.hit.Count()
 	miss := GPeerRH.miss.Count()
 
@@ -538,6 +538,8 @@ func StartBackReport() {
 
 			fmt.Printf("    Provide: %d\n", provided)
 			provided = 0
+
+			// Output_Get()
 		}
 	}()
 }

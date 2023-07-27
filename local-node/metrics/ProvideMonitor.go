@@ -2,8 +2,9 @@ package metrics
 
 import (
 	"fmt"
-	"github.com/rcrowley/go-metrics"
 	"time"
+
+	"github.com/rcrowley/go-metrics"
 )
 
 //Provide metrics
@@ -12,7 +13,7 @@ var SuccessfullyProvide int
 var StartBackProvideTime time.Time
 var LastFewProvides *Queue //record the Min CPL in top K peers for last a few provides
 
-var QueryPeerTime = time.Second * 3
+var QueryPeerTime = 60
 
 func UpdateProvideMetric(StartProvideTime time.Time, key string) {
 	if !CMD_EnableMetrics {

@@ -6,21 +6,6 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
-	"github.com/ipfs/go-cid"
-	_ "github.com/ipfs/go-cid"
-	config "github.com/ipfs/go-ipfs-config"
-	files "github.com/ipfs/go-ipfs-files"
-	"github.com/ipfs/go-ipfs/core"
-	"github.com/ipfs/go-ipfs/core/coreapi"
-	"github.com/ipfs/go-ipfs/core/node/libp2p"
-	"github.com/ipfs/go-ipfs/plugin/loader"
-	"github.com/ipfs/go-ipfs/repo/fsrepo"
-	logging "github.com/ipfs/go-log"
-	icore "github.com/ipfs/interface-go-ipfs-core"
-	"github.com/ipfs/interface-go-ipfs-core/options"
-	icorepath "github.com/ipfs/interface-go-ipfs-core/path"
-	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/multiformats/go-multiaddr"
 	"io"
 	"io/ioutil"
 	"metrics"
@@ -36,8 +21,25 @@ import (
 	"syscall"
 	"time"
 
-	gometrcs "github.com/rcrowley/go-metrics"
+	"github.com/ipfs/go-cid"
+	_ "github.com/ipfs/go-cid"
+	config "github.com/ipfs/go-ipfs-config"
+	files "github.com/ipfs/go-ipfs-files"
+	"github.com/ipfs/go-ipfs/core"
+	"github.com/ipfs/go-ipfs/core/coreapi"
+	"github.com/ipfs/go-ipfs/core/node/libp2p"
+	"github.com/ipfs/go-ipfs/plugin/loader"
+	"github.com/ipfs/go-ipfs/repo/fsrepo"
+	logging "github.com/ipfs/go-log"
+	icore "github.com/ipfs/interface-go-ipfs-core"
+	"github.com/ipfs/interface-go-ipfs-core/options"
+	icorepath "github.com/ipfs/interface-go-ipfs-core/path"
+	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multiaddr"
+
 	"math/rand"
+
+	gometrcs "github.com/rcrowley/go-metrics"
 )
 
 func setupPlugins(externalPluginsPath string) error {
@@ -276,7 +278,7 @@ func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, ci
 						return
 					}
 					start := time.Now()
-					cid, err := UploadFile(tempfile, ctx, ipfs, chunker, false)
+					cid, err := UploadFile(tempfile, ctx, ipfs, chunker, metrics.CMD_ProvideEach)
 					if err != nil {
 						fmt.Println(err.Error())
 						stallchan <- i
@@ -374,10 +376,10 @@ func Upload(size, number, cores int, ctx context.Context, ipfs icore.CoreAPI, ci
 
 func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bool, np string, concurrentGet int, sad bool) {
 	//peers to remove after each get
-	neighbours, err := LocalNeighbour(np)
-	if err != nil || len(neighbours) == 0 {
-		fmt.Printf("no neighbours file specified, will not disconnect any neighbours after geting\n")
-	}
+	// neighbours, err := LocalNeighbour(np)
+	// if err != nil || len(neighbours) == 0 {
+	// 	fmt.Printf("no neighbours file specified, will not disconnect any neighbours after geting\n")
+	// }
 
 	//known peers
 	AddNeighbour(ipfs, ctx)
@@ -479,8 +481,8 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 				//DisconnectAllPeers(ctx, ipfs)
 				//remove neighbours
 
-				if len(neighbours) != 0 {
-					for _, n := range neighbours {
+				if len(disconnectNeighbours) != 0 {
+					for _, n := range disconnectNeighbours {
 						//fmt.Printf("try to disconnect from %s\n", n)
 						err := DisconnectAllPeers(ctx, ipfs, n)
 						if err != nil {
@@ -698,6 +700,147 @@ func TraceDownload(traceFile string, traceDownload_randomRequest bool, ipfs icor
 	}
 }
 
+func handleRequest(conn net.Conn, ctx context.Context, ipfs icore.CoreAPI) {
+
+	request := make([]byte, 1024)
+	_, err := conn.Read(request)
+	if err != nil {
+		fmt.Println("Error reading request:", err)
+		conn.Close()
+		return
+	}
+	reqs := strings.Split(string(request), " ")
+	var rep string
+	switch reqs[0] {
+	case "1":
+		// fmt.Printf("handle file upload: %s\n", reqs[1])
+		size_string := strings.Replace(reqs[1], "\x00", "", -1)
+		start := time.Now()
+		file_size, err := strconv.Atoi(size_string)
+		if err != nil {
+			fmt.Printf("error transform int: %s\n", err.Error())
+			rep = "1 "
+			break
+		}
+		//create tmp file
+		tmpFile, err := os.Create("tmp_file")
+		if err != nil {
+			fmt.Printf("error create file: %s\n", err.Error())
+			rep = "1 "
+			break
+		}
+		defer tmpFile.Close()
+		subs := NewLenChars(file_size, StdChars)
+		// ioutil.WriteFile(tmpFile.Name(), []byte(subs), 0666)
+		_, err = tmpFile.WriteString((subs))
+		if err != nil {
+			fmt.Printf("error write file: %s\n", err.Error())
+			rep = "1 "
+			break
+		}
+		//upload file to ipfs
+		cid, err := UploadFile(tmpFile.Name(), ctx, ipfs, "size-262144", metrics.CMD_ProvideEach)
+		if err != nil {
+			fmt.Println(err.Error())
+			rep = "1 "
+			break
+		} else {
+			cid_outline := strings.Split(cid.String(), "/")[2]
+			rep = "0 " + cid_outline + " "
+			fmt.Printf("%s upload %f ms\n", cid.Cid(), time.Now().Sub(start).Seconds()*1000)
+			if len(disconnectNeighbours) != 0 {
+				for _, n := range disconnectNeighbours {
+					//fmt.Printf("try to disconnect from %s\n", n)
+					err := DisconnectAllPeers(ctx, ipfs, n)
+					if err != nil {
+						// fmt.Printf("failed to disconnect: %v\n", err)
+					}
+				}
+			}
+		}
+	case "2":
+		// fmt.Printf("handle file download: %s\n", reqs[1])
+		start := time.Now()
+		cid := reqs[1]
+		cid = strings.Replace(cid, "\x00", "", -1)
+		p := icorepath.New(cid)
+		rootNode, err := ipfs.Unixfs().Get(ctx, p)
+		if err != nil {
+			fmt.Printf("error while get %s: %s\n", cid, err.Error())
+			rep = "1 "
+			break
+		} else {
+			rootget := time.Now()
+			err = files.WriteTo(rootNode, "output_tmp_file")
+			if err != nil {
+				fmt.Printf("error while write to file %s : %s\n", cid, err.Error())
+				rep = "1 "
+				break
+			}
+			selfk, _ := ipfs.Key().Self(ctx)
+			rep = "0 " + selfk.ID().Pretty()
+			if metrics.CMD_PeerRH {
+				metrics.Output_PeerRH()
+			}
+			fmt.Printf("%s download %fms (%f:%f)\n", cid, time.Now().Sub(start).Seconds()*1000, rootget.Sub(start).Seconds()*1000, time.Now().Sub(rootget).Seconds()*1000)
+			if len(disconnectNeighbours) != 0 {
+				for _, n := range disconnectNeighbours {
+					//fmt.Printf("try to disconnect from %s\n", n)
+					err := DisconnectAllPeers(ctx, ipfs, n)
+					if err != nil {
+						// fmt.Printf("failed to disconnect: %v\n", err)
+					}
+				}
+			}
+		}
+	default:
+		fmt.Printf("unrecognized op %s\n", reqs[0])
+		rep = "1 "
+	}
+
+	_, err = conn.Write([]byte(rep))
+	if err != nil {
+		fmt.Println("Error sending result:", err)
+	}
+	conn.Close()
+}
+
+func startServer(ctx context.Context, ipfs icore.CoreAPI) {
+	listener, err := net.Listen("tcp", ":8080")
+	if err != nil {
+		fmt.Println("Error starting server:", err)
+		return
+	}
+	defer listener.Close()
+	for {
+		// 等待客户端连接
+		conn, err := listener.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection:", err)
+			continue
+		}
+
+		// 处理客户端请求
+		go handleRequest(conn, ctx, ipfs)
+	}
+
+}
+
+func ipfs_backend(ctx context.Context, ipfs icore.CoreAPI) {
+	fmt.Println("ipfs back_end listening on port 8080...")
+	metrics.StartBackReport()
+	sigChan := make(chan os.Signal)
+	signal.Notify(sigChan, os.Interrupt, os.Kill, syscall.SIGTERM)
+
+	go func() {
+		startServer(ctx, ipfs)
+	}()
+	sig := <-sigChan
+	fmt.Printf("Received signal: %v\n", sig)
+}
+
+var disconnectNeighbours []string
+
 func main() {
 
 	//read config option
@@ -711,7 +854,7 @@ func main() {
 
 	// expDHT:
 	flag.BoolVar(&(metrics.CMD_PeerRH), "PeerRH", false, "Whether to enable PeerResponseHistory")
-	flag.BoolVar(&(metrics.CMD_LoadSaveCache), "loadsavecache", false, "Whether to load & save PeerResponseHistory")
+	// flag.BoolVar(&(metrics.CMD_LoadSaveCache), "loadsavecache", false, "Whether to load & save PeerResponseHistory")
 
 	var cmd string
 	var filesize int
@@ -720,7 +863,6 @@ func main() {
 	var parallel int
 	var cidfile string
 	var provideAfterGet bool
-	var rmNeighbourPath string
 
 	var ipfsPath string
 	var redun_rate int
@@ -733,7 +875,7 @@ func main() {
 	var servers int
 	var traceFile string
 	var downloadNumber int
-
+	var rmNeighbourPath string
 	var stallafterdownload = false
 
 	flag.IntVar(&redun_rate, "redun", 0, "The redundancy of the file when Benchmarking upload, 100 indicates that there is exactly the same file in the node, 0 means there is no existence of same file.(default 0)")
@@ -785,10 +927,11 @@ func main() {
 
 	flag.BoolVar(&(metrics.EnablePbitswap), "enablepbitswap", false, "whether to enable pbitswap(re-order blk request sequence for each provider, load-balanced request batch, find co-workers from providers). "+
 		"Note that if enable pbitswap the metrics will be no longer accurate.")
-	flag.Float64Var(&(metrics.B), "B", 1e70, "parameter for ax + by")
+	flag.Float64Var(&(metrics.B), "B", 0.95, "parameter for ax + by")
 
 	flag.BoolVar(&stallafterdownload, "sad", false, "stall after download")
-
+	flag.IntVar(&(metrics.QueryPeerTime), "qpt", 60, "query peer time")
+	flag.BoolVar(&(metrics.CMD_NoneNeighbourAsking), "nna", false, "skip NeighbourAsking")
 	flag.Parse()
 
 	// NOTE: check the concurrentGet.
@@ -817,12 +960,16 @@ func main() {
 			metrics.OutputMetrics0()
 			metrics.Output_ProvideMonitor()
 		}()
-		if metrics.CMD_LoadSaveCache {
-			metrics.GPeerRH.Load()
-			defer metrics.GPeerRH.Store()
-		}
 	}
 
+	if metrics.CMD_PeerRH {
+		// 假设一个cacheline 需要 200 个字节，那么我们让最多设置 5e6 个 cacheline
+		// 此时需要 1GB 内存，为了测试方便，我们先设置如上个数
+		metrics.GPeerRH = metrics.NewPeerRH(1, metrics.B, 5*1e6) // 历史信息不起作用
+		//GPeerRH = NewPeerRH(1, 1) // 历史信息与逻辑距离 1:1
+		metrics.GPeerRH.Load()
+		defer metrics.GPeerRH.Store()
+	}
 	//see logs
 	if len(seelogs) > 0 {
 		sublogs := strings.Split(seelogs, "-")
@@ -843,6 +990,17 @@ func main() {
 			if err != nil {
 				fmt.Println("failed to set log level of: " + s + " ." + err.Error())
 			}
+		}
+	}
+
+	neighbours, err := LocalNeighbour(rmNeighbourPath)
+	if err != nil || len(neighbours) == 0 {
+		fmt.Printf("no neighbours file specified, will not disconnect any neighbours after geting\n")
+	} else {
+		fmt.Printf("following peers will be manully disconnected after each GET: \n")
+		for _, n := range neighbours {
+			fmt.Printf("	%s\n", n)
+			disconnectNeighbours = append(disconnectNeighbours, n)
 		}
 	}
 
@@ -900,6 +1058,12 @@ func main() {
 		ctx, ipfs, cancel := Ini()
 		defer cancel()
 		TraceDownload(traceFile, traceDownload_randomRequest, ipfs, ctx, provideAfterGet, downloadNumber)
+		return
+	}
+	if cmd == "ipfsbackend" {
+		ctx, ipfs, cancel := Ini()
+		defer cancel()
+		ipfs_backend(ctx, ipfs)
 		return
 	}
 	_, _, cancel := Ini()

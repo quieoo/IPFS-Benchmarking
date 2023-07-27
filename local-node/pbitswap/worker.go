@@ -3,14 +3,15 @@ package pbitswap
 import (
 	"context"
 	"fmt"
+	"sort"
+	"sync"
+	"time"
+
 	"github.com/ipfs/go-cid"
 	util "github.com/ipfs/go-ipfs-util"
 	format "github.com/ipfs/go-ipld-format"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/syndtr/goleveldb/leveldb/testutil"
-	"sort"
-	"sync"
-	"time"
 )
 
 type peerToDispatch struct {

@@ -2,6 +2,7 @@ package pbitswap
 
 import (
 	"fmt"
+
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
@@ -22,7 +23,11 @@ func (m *DispatchMonitor) updateRedundant() {
 }
 
 func (m *DispatchMonitor) updateEffects(p peer.ID, e int) {
-	m.effects[p] = e
+	_, exists := m.effects[p]
+	if exists {
+		m.effects[p] = e
+	}
+
 }
 
 func (m *DispatchMonitor) GetRedundants() int {

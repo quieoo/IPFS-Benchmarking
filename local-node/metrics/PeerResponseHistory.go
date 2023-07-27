@@ -4,9 +4,6 @@ import (
 	"bufio"
 	"encoding/csv"
 	"fmt"
-	lru "github.com/hashicorp/golang-lru"
-	gometrics "github.com/rcrowley/go-metrics"
-	ks "github.com/whyrusleeping/go-keyspace"
 	"io"
 	"math/big"
 	"os"
@@ -14,6 +11,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	lru "github.com/hashicorp/golang-lru"
+	gometrics "github.com/rcrowley/go-metrics"
+	ks "github.com/whyrusleeping/go-keyspace"
 )
 
 type PeerLatency struct {
@@ -318,7 +319,8 @@ func (prh *PeerResponseHistory) Store() {
 	outputWriter := bufio.NewWriter(outputFile)
 
 	keys := GPeerRH.lruCache.Keys()
-	len := GPeerRH.lruCache.Len()
+	// len := GPeerRH.lruCache.Len()
+	len := len(keys)
 	cnt := 0
 	for i := 0; i < len; i++ {
 		val, _ := GPeerRH.lruCache.Peek(keys[i])
