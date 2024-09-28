@@ -2,7 +2,7 @@ import { create } from 'ipfs-http-client';
 import { CID } from 'multiformats/cid';
 import fs from 'fs/promises';
 import { performance } from 'perf_hooks';
-import fetch from 'node-fetch';  // You might need to install this if not available
+import fetch from 'node-fetch';  // Ensure this is installed
 
 // 读取 'cids.txt' 中的 CID 列表
 async function readCidsFromFile(filename) {
@@ -21,10 +21,17 @@ async function findProvidersForCID(cidString, timeout) {
     const startTime = performance.now(); // 开始时间
 
     // API URL
-    const url = `http://127.0.0.1:5001/api/v0/routing/findprovs?arg=${cidString}&timeout=${timeout}ms`;
+    const url = `http://127.0.0.1:5001/api/v0/routing/findprovs`;
 
-    // 发送请求
-    const response = await fetch(url);
+    // 发送 POST 请求
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ arg: cidString, timeout: `${timeout}ms` })
+    });
+
     if (!response.ok) {
       throw new Error(`Error fetching providers: ${response.statusText}`);
     }
