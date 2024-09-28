@@ -1,7 +1,7 @@
 {
   "Identity": {
-    "PeerID": "12D3KooWGL1tafVSJoNt55uX3bPT1GYYHen787AhHBHC6t17E1D2",
-    "PrivKey": "CAESQOw7m1uMlbO23Rq6qJBZuGJJX+RHDZGVqbmyzv6UNpytYL6d3Uv0x4IU3K6mvK+3gGlWD1zcztNtQpBaW3+rS2E="
+    "PeerID": "12D3KooWJxKp1F5U3ivrksVSUWi52JjSYPMFzhbNFWNoZoA5QXff",
+    "PrivKey": "CAESQIU3k1TsK9vItSXyxs0CXKnGBbdBJj/3VCFjfwMatQM6h8MpwDh5vKBuJyEmbLk+l6udbnyroBSNYjl/6fzUlvI="
   },
   "Datastore": {
     "StorageMax": "10GB",
@@ -64,59 +64,8 @@
     }
   },
   "Routing": {
-    "Methods": {
-      "find-peers": {
-        "RouterName": "WanDHT"
-      },
-      "find-providers": {
-        "RouterName": "ParallelHelper"
-      },
-      "get-ipns": {
-        "RouterName": "WanDHT"
-      },
-      "provide": {
-        "RouterName": "ParallelHelper"
-      },
-      "put-ipns": {
-        "RouterName": "WanDHT"
-      }
-    },
-    "Routers": {
-      "IndexProvider": {
-        "Parameters": {
-          "Endpoint": "http://127.0.0.1:50617",
-          "MaxProvideBatchSize": 10000,
-          "MaxProvideConcurrency": 1
-        },
-        "Type": "http"
-      },
-      "ParallelHelper": {
-        "Parameters": {
-          "Routers": [
-            {
-              "IgnoreErrors": true,
-              "RouterName": "IndexProvider",
-              "Timeout": "30m"
-            },
-            {
-              "IgnoreErrors": true,
-              "RouterName": "WanDHT",
-              "Timeout": "30m"
-            }
-          ]
-        },
-        "Type": "parallel"
-      },
-      "WanDHT": {
-        "Parameters": {
-          "AcceleratedDHTClient": false,
-          "Mode": "auto",
-          "PublicIPNetwork": true
-        },
-        "Type": "dht"
-      }
-    },
-    "Type": "custom"
+    "Routers": null,
+    "Methods": null
   },
   "Ipns": {
     "RepublishPeriod": "",
@@ -124,12 +73,12 @@
     "ResolveCacheSize": 128
   },
   "Bootstrap": [
-    "/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
-    "/ip4/104.131.131.82/udp/4001/quic-v1/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
     "/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
     "/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
     "/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
-    "/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt"
+    "/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
+    "/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+    "/ip4/104.131.131.82/udp/4001/quic-v1/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ"
   ],
   "Gateway": {
     "HTTPHeaders": {},
