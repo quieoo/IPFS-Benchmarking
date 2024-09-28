@@ -2,6 +2,7 @@ import { create } from 'ipfs-http-client';
 import { CID } from 'multiformats/cid';
 import fs from 'fs/promises';
 import { performance } from 'perf_hooks';
+import fetch from 'node-fetch';  // You might need to install this if not available
 
 // 读取 'cids.txt' 中的 CID 列表
 async function readCidsFromFile(filename) {
@@ -14,22 +15,27 @@ async function readCidsFromFile(filename) {
   }
 }
 
-// 调用 findProvs 获取 providers，并记录执行时间
-async function findProvidersForCID(client, cidString, timeout) {
+// 调用 /api/v0/routing/findprovs 获取 providers，并记录执行时间
+async function findProvidersForCID(cidString, timeout) {
   try {
-    const cid = CID.parse(cidString);
     const startTime = performance.now(); // 开始时间
 
-    const providers = client.dht.findProvs(cid, { timeout });
-    let providerCount = 0;
+    // API URL
+    const url = `http://127.0.0.1:5001/api/v0/routing/findprovs?arg=${cidString}&timeout=${timeout}ms`;
 
-    for await (const provider of providers) {
-      if (provider && provider.id) {
-        console.log(`Provider for CID ${cidString} found: ${provider.id.toString()}`);
-        providerCount++;
-      } else {
-        console.log(`Provider for CID ${cidString} is undefined or does not have an id.`);
-      }
+    // 发送请求
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Error fetching providers: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    // 处理结果
+    let providerCount = 0;
+    for (const provider of data) {
+      console.log(`Provider for CID ${cidString} found: ${provider.ID}`);
+      providerCount++;
     }
 
     const endTime = performance.now(); // 结束时间
@@ -45,9 +51,6 @@ async function findProvidersForCID(client, cidString, timeout) {
 }
 
 (async () => {
-  // 连接到 IPFS API (通过 ipfs-http-client)
-  const client = create({ url: 'http://127.0.0.1:5001' });
-
   try {
     // 读取 'cids.txt' 中的 CID 列表
     const cids = await readCidsFromFile('cids.txt');
@@ -62,7 +65,7 @@ async function findProvidersForCID(client, cidString, timeout) {
     for (let i = 0; i < cids.length; i++) {
       const cid = cids[i];
       console.log(`Searching for providers of CID: ${cid}`);
-      const executionTime = await findProvidersForCID(client, cid, timeout);
+      const executionTime = await findProvidersForCID(cid, timeout);
       totalExecutionTime += executionTime;
     }
 
