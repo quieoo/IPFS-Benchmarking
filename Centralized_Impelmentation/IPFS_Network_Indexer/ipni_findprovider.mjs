@@ -1,7 +1,7 @@
-import { create } from 'kubo-rpc-client';
+import { create } from 'ipfs-http-client';
 import { CID } from 'multiformats/cid';
-import fs from 'fs/promises'; // 用于读取 cids.txt 文件
-import { performance } from 'perf_hooks'; // 用于记录时间
+import fs from 'fs/promises';
+import { performance } from 'perf_hooks';
 
 // 读取 'cids.txt' 中的 CID 列表
 async function readCidsFromFile(filename) {
@@ -45,8 +45,8 @@ async function findProvidersForCID(client, cidString, timeout) {
 }
 
 (async () => {
-  // 连接到 IPFS API
-  const client = create(new URL('http://127.0.0.1:5001'));
+  // 连接到 IPFS API (通过 ipfs-http-client)
+  const client = create({ url: 'http://127.0.0.1:5001' });
 
   try {
     // 读取 'cids.txt' 中的 CID 列表
