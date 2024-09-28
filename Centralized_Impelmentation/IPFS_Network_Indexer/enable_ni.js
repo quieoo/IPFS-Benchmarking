@@ -25,11 +25,6 @@ const niRouting = {
               "IgnoreErrors": true,
               "RouterName": "IndexProvider",
               "Timeout": "30m"
-            },
-            {
-              "IgnoreErrors": true,
-              "RouterName": "WanDHT",
-              "Timeout": "30m"
             }
           ]
         },
