@@ -1,14 +1,14 @@
-GO1.15 is recommanded.
+Make sure GO1.15 is installed.
 
 build ipfs node
 ````
 cd go-ipfs
-make build
+CGO_ENABLED=0 make build
 ````
 build benchmark node
 ````
 cd local-node
-go build
+CGO_ENABLED=0 go build -o localIPFSNode
 ````
 
 Initialize IPFS repo
