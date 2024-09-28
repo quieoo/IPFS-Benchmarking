@@ -1,6 +1,7 @@
 import { create } from 'kubo-rpc-client';
 import crypto from 'crypto';
 import { performance } from 'perf_hooks';
+import fs from 'fs/promises'; // 使用 promise 版本的 fs 模块
 
 // 生成随机内容的函数
 const generateRandomData = (size) => {
@@ -13,11 +14,11 @@ const generateRandomData = (size) => {
 
   try {
     let totalUploadTime = 0;
+    let cids = [];
 
     for (let i = 1; i <= numberOfFiles; i++) {
       // 生成随机内容
       const randomData = generateRandomData(fileSizeInBytes);
-      console.log(`Random data for file ${i} (${fileSizeInBytes} bytes) generated.`);
 
       // 开始记录上传时间
       const startTime = performance.now();
@@ -33,7 +34,14 @@ const generateRandomData = (size) => {
 
       // 累加总上传时间
       totalUploadTime += uploadTime;
+
+      // 将 CID 保存到数组中
+      cids.push(cid.toString());
     }
+
+    // 将所有 CID 写入文件
+    await fs.writeFile('cids.txt', cids.join('\n'), 'utf-8');
+    console.log('CIDs saved to cids.txt');
 
     // 计算并输出平均上传时间
     const averageUploadTime = totalUploadTime / numberOfFiles;
@@ -42,4 +50,4 @@ const generateRandomData = (size) => {
   } catch (error) {
     console.error('Error adding content to IPFS:', error);
   }
-})(4 * 1024, 3);  // 参数：文件大小1MB，文件数量5个
+})(4 * 1024, 3);  // 参数：文件大小4KB，文件数量3个
