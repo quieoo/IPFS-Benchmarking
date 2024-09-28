@@ -131,9 +131,12 @@ nvm install 20
 ```
 Before run `nvm`, it needs to restart the terminal
 
-Install
+Install dependencies
 ```
+cd IPFS-Benchmarking/Centralized_Impelmentation/IPFS_Network_Indexer
 npm i kubo-rpc-client
 ```
-
 Run the testing script to update files
+```
+
+```
