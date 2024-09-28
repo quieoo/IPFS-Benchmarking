@@ -15,41 +15,37 @@ async function readCidsFromFile(filename) {
 
 // Send POST request to /api/v0/routing/findprovs to fetch providers
 async function findProvidersForCID(cidString, numProviders = 20, verbose = false) {
-  try {
-    const startTime = performance.now(); // Start time
-
-    // Construct the POST URL with the proper parameters
-    const url = `http://127.0.0.1:5001/api/v0/routing/findprovs?arg=${cidString}&verbose=${verbose}&num-providers=${numProviders}`;
-
-    // Send POST request
-    const response = await fetch(url, {
-      method: 'POST'
-    });
-
-    if (!response.ok) {
-      throw new Error(`Error fetching providers: ${response.statusText}`);
+    try {
+      const startTime = performance.now(); // Start time
+  
+      // Construct the POST URL with the proper parameters
+      const url = `http://127.0.0.1:5001/api/v0/routing/findprovs?arg=${cidString}&verbose=${verbose}&num-providers=${numProviders}`;
+  
+      // Send POST request
+      const response = await fetch(url, {
+        method: 'POST'
+      });
+  
+      if (!response.ok) {
+        throw new Error(`Error fetching providers: ${response.statusText}`);
+      }
+  
+      // Attempt to get the response as text
+      const data = await response.text();
+      console.log(`Raw response: ${data}`);
+  
+      const endTime = performance.now(); // End time
+      const executionTime = endTime - startTime; // Calculate execution time
+  
+      console.log(`FindProvs for CID ${cidString} completed in ${executionTime.toFixed(2)} ms`);
+      return executionTime; // Return execution time
+  
+    } catch (error) {
+      console.error(`Error finding providers for CID ${cidString}:`, error);
+      return 0; // If failed, return 0 as execution time
     }
-
-    const data = await response.json();
-
-    // Process response data
-    let providerCount = 0;
-    for (const provider of data) {
-      console.log(`Provider for CID ${cidString} found: ${provider.ID}`);
-      providerCount++;
-    }
-
-    const endTime = performance.now(); // End time
-    const executionTime = endTime - startTime; // Calculate execution time
-
-    console.log(`FindProvs for CID ${cidString} completed in ${executionTime.toFixed(2)} ms`);
-    return executionTime; // Return execution time
-
-  } catch (error) {
-    console.error(`Error finding providers for CID ${cidString}:`, error);
-    return 0; // If failed, return 0 as execution time
-  }
 }
+  
 
 (async () => {
   try {
