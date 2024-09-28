@@ -14,14 +14,14 @@ async function readCidsFromFile(filename) {
   }
 }
 
-// 调用 findProvs 获取 providers，记录执行时间
+// 调用 query 查找 CID 的 providers，记录执行时间
 async function findProvidersForCID(client, cidString, index) {
   try {
     const cid = CID.parse(cidString);
     
     const startTime = performance.now(); // 开始时间
 
-    const providers = client.dht.findProvs(cid);
+    const providers = client.dht.query(cid);
     let providerCount = 0;
 
     for await (const provider of providers) {
