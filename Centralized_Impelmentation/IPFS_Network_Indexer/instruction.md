@@ -136,6 +136,8 @@ Install dependencies
 cd IPFS-Benchmarking/Centralized_Impelmentation/IPFS_Network_Indexer
 npm i kubo-rpc-client
 npm i ipfs-http-client
+go get github.com/ipfs/kubo/client/rpc
+
 ```
 Run the testing script to update files
 ```
