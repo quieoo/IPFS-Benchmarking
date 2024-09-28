@@ -32,7 +32,7 @@ async function findProvidersForCID(cidString, numProviders = 20, verbose = false
   
       // Attempt to get the response as text
       const data = await response.text();
-      console.log(`Raw response: ${data}`);
+    //   console.log(`Raw response: ${data}`);
   
       const endTime = performance.now(); // End time
       const executionTime = endTime - startTime; // Calculate execution time
