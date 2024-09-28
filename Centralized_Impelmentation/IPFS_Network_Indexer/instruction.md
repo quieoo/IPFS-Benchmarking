@@ -1,5 +1,15 @@
 ## Prerequisite
 go version 1.21+
+```
+wget https://go.dev/dl/go1.23.1.linux-amd64.tar.gz
+rm -rf /usr/local/go && tar -C /usr/local -xzf go1.23.1.linux-amd64.tar.gz
+```
+Add the following to the `/etc/profile`
+```
+export PATH=$PATH:/usr/local/go/bin
+export PATH=$(go env GOPATH)/bin:$PATH
+```
+run `source /etc/profile`
 
 ## Run the Provider
 
@@ -7,7 +17,6 @@ Install
 ```
 go install github.com/ipni/index-provider/cmd/provider@latest
 ```
-
 Initialize
 ```
 provider init
