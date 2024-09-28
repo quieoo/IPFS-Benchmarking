@@ -1,4 +1,6 @@
-## Prerequisite
+## Run the Provider
+
+### Prerequisite
 go version 1.21+
 ```
 wget https://go.dev/dl/go1.23.1.linux-amd64.tar.gz
@@ -11,9 +13,7 @@ export PATH=$(go env GOPATH)/bin:$PATH
 ```
 run `source /etc/profile`
 
-## Run the Provider
-
-Install
+### Install & Run
 ```
 go install github.com/ipni/index-provider/cmd/provider@latest
 ```
@@ -45,6 +45,7 @@ provider daemon
 ```
 
 ## Run the ipfs daemon
+### Build ipfs
 
 use the modified node (based from IPFS kubo which support Network Indexder) so as to collect the output of content 'Provide' and 'Retrieval'. Choose a directory, run: 
 ```
@@ -60,6 +61,8 @@ make build CGO_ENABLED=0
 ```
 The executable file is located at `go-ipfs/cmd/ipfs/ipfs`
 
+
+### Configure and Run
 Initialize the ipfs node
 ```
 ./cmd/ipfs/ipfs init
@@ -126,6 +129,14 @@ Configure the ipfs node so as to connect with the index provider, the configurat
 
 Change the 'Type' filed to `dht` to avoid using index provider.
 
+Or simply run `enable_ni.js`, for example:
+```
+node enable_ni.js ~/.ipfs/config ni
+or
+node enable_ni.js ~/.ipfs/config dht
+```
+modify the 'Endpoint' field to the address of the index provider.
+
 Run the ipfs daemon
 ```
 ./cmd/ipfs/ipfs daemon
@@ -146,9 +157,9 @@ cd IPFS-Benchmarking/Centralized_Impelmentation/IPFS_Network_Indexer
 npm i kubo-rpc-client
 npm i ipfs-http-client
 npm i node-fetch
-
 ```
 Run the testing script to update files
 ```
-
+(Provider): node ipni_upload.mjs
+(Client):   node ipni_findprovider.mjs
 ```
