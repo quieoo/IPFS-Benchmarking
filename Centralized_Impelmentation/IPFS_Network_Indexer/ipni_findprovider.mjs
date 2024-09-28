@@ -25,8 +25,12 @@ async function findProvidersForCID(client, cidString, index) {
     let providerCount = 0;
 
     for await (const provider of providers) {
-      console.log(`Provider for CID ${cidString} found: ${provider.id.toString()}`);
-      providerCount++;
+      if (provider && provider.id) {  // 检查 provider 和 provider.id 是否存在
+        console.log(`Provider for CID ${cidString} found: ${provider.id.toString()}`);
+        providerCount++;
+      } else {
+        console.log(`Provider for CID ${cidString} is undefined or does not have an id.`);
+      }
     }
 
     const endTime = performance.now(); // 结束时间
