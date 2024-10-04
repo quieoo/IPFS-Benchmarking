@@ -1,4 +1,6 @@
 #!/bin/bash
+rm -rf ~/.ssh/known_hosts
+
 host_list=$1
 # shellcheck disable=SC2162
 # shellcheck disable=SC2002

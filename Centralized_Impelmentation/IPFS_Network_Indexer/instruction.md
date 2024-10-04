@@ -1,4 +1,4 @@
-## Run the Provider
+## Run the Index-Provider
 
 ### Prerequisite
 go version 1.21+
@@ -50,13 +50,11 @@ provider daemon
 use the modified node (based from IPFS kubo which support Network Indexder) so as to collect the output of content 'Provide' and 'Retrieval'. Choose a directory, run: 
 ```
 git clone https://github.com/quieoo/go-ipfs.git
-cd go-ipfs
-git checkout kubo
-cd ..
 git clone https://github.com/quieoo/boxo.git
 cd boxo
 git checkout kubo
 cd ../go-ipfs
+git checkout kubo
 make build CGO_ENABLED=0
 ```
 The executable file is located at `go-ipfs/cmd/ipfs/ipfs`

@@ -74,3 +74,8 @@ copy.sh
 /tools/PL_HTTP_CloserPeers_2/PLSG
 /httpfs/root@47.254.170.165
 
+local-node/ipfs
+local-node/xipfs
+local-node/go.sum
+local-node/pbitswap/go.mod
+local-node/pbitswap/go.sum
