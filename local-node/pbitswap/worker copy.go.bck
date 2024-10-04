@@ -32,7 +32,7 @@ type peerToDispatch struct {
 
 	effective int
 
-	lock        *sync.Mutex // 改为读写锁以提高并发
+	lock        *sync.Mutex
 	workinglock *sync.Mutex
 
 	wg *sync.WaitGroup
@@ -40,13 +40,13 @@ type peerToDispatch struct {
 
 	working bool
 
-	// visitnumber int
-	// visittime   float64
-	// channeltime float64
+	visitnumber int
+	visittime   float64
+	channeltime float64
 
-	// preparenumber int
-	// preparetime   float64
-	// requesttime   float64
+	preparenumber int
+	preparetime   float64
+	requesttime   float64
 }
 
 type sortItem struct {
@@ -297,19 +297,18 @@ func (p *peerToDispatch) run() {
 		//fmt.Printf("%s visit %d, use %f, channel use %f\n",p.id,p.visitnumber,p.visittime/float64(p.visitnumber),p.channeltime/float64(p.visitnumber))
 		//fmt.Printf("%s prepare %d, use %f, request use %f \n",p.id,p.preparenumber,p.preparetime/float64(p.preparenumber), p.requesttime/float64(p.preparenumber))
 	}()
+
 	limiter := time.NewTicker(p.da.tolerate) //time-out threshold
 
 	for {
 		//fmt.Printf("peer %s, sequence %v\n",p.id,p.sequence)
-		// p.preparenumber++
-		// prestart := time.Now()
+		p.preparenumber++
+		prestart := time.Now()
 
 		toRequest := p.dispatcher.squeeze(*p)
 		requests := new(sync.Map)
 		numOfRequest := len(toRequest)
 		totalrequests := numOfRequest
-		reduntant_blk := 0
-
 		//fmt.Printf("peer %s, sequeeze out targets %v\n",p.id,toRequest)
 		logger.Debugf("Worker %s, request %d blks, already totally receive %d", p.id, totalrequests, p.dispatcher.collectedblk)
 
@@ -321,21 +320,21 @@ func (p *peerToDispatch) run() {
 		for _, r := range toRequest {
 			requests.Store(r, Pending)
 		}
-		// p.preparetime += time.Now().Sub(prestart).Seconds() * float64(1000)
+		p.preparetime += time.Now().Sub(prestart).Seconds() * float64(1000)
 
-		// restart := time.Now()
+		restart := time.Now()
 		blocks := p.getter.(format.PeerGetter).GetBlocksFrom(p.ctx, toRequest, p.id) //send requests
-		// p.requesttime += time.Now().Sub(restart).Seconds() * float64(1000)
+		p.requesttime += time.Now().Sub(restart).Seconds() * float64(1000)
 
 		start := time.Now()
-		// readytochannel := time.Now()
+		readytochannel := time.Now()
 		limiter.Reset(p.da.tolerate)
 		for {
 			select {
 			case blk, ok := <-blocks:
-				// p.channeltime += time.Now().Sub(readytochannel).Seconds() * float64(1000)
-				// p.visitnumber++
-				// visitstart := time.Now()
+				p.channeltime += time.Now().Sub(readytochannel).Seconds() * float64(1000)
+				p.visitnumber++
+				visitstart := time.Now()
 
 				if !ok {
 					//fmt.Printf("block channel finish--%s\n",p.id)
@@ -379,12 +378,11 @@ func (p *peerToDispatch) run() {
 					}
 				}
 
-				// p.visittime += time.Now().Sub(visitstart).Seconds() * float64(1000)
-				// readytochannel = time.Now()
+				p.visittime += time.Now().Sub(visitstart).Seconds() * float64(1000)
+				readytochannel = time.Now()
 
 				if !need {
 					p.dispatcher.monitor.updateRedundant()
-					reduntant_blk++
 					continue
 				}
 
@@ -401,16 +399,7 @@ func (p *peerToDispatch) run() {
 		}
 	NextRound2:
 		// adjust requestEachTime dynamically after requesting
-		p.requestEachTime = p.da.Adjust6(totalrequests, totalrequests-numOfRequest, reduntant_blk, time.Now().Sub(start))
-		// p.requestEachTime = p.da.Adjust5(float64(totalrequests-numOfRequest)/float64(totalrequests), time.Now().Sub(start), totalrequests-numOfRequest)
-
-		// receivedBlocksRatio := float64(totalrequests-numOfRequest) / float64(totalrequests)
-		// // 动态调整Limiter时间
-		// if receivedBlocksRatio < 0.5 {
-		// 	limiter.Reset(p.da.tolerate + time.Duration(100*time.Millisecond)) // 增加超时时间
-		// } else if receivedBlocksRatio > 0.9 {
-		// 	limiter.Reset(limiterDuration - time.Duration(50*time.Millisecond)) // 减少超时时间
-		// }
+		p.requestEachTime = p.da.Adjust5(float64(totalrequests-numOfRequest)/float64(totalrequests), time.Now().Sub(start), totalrequests-numOfRequest)
 		//p.requestEachTime = 10
 		logger.Debugf("Worker %s, finish current round, left blk: %d", p.id, numOfRequest)
 	}

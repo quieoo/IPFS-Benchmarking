@@ -179,7 +179,7 @@ func (d *Dispatcher) Dispatch3(visit format.Visitor) error {
 			if !ok {
 				return errors.New("provider channel closed")
 			}
-			fmt.Printf("dispatcher got provider %s\n", prov)
+			// fmt.Printf("dispatcher got provider %s\n", prov)
 			if prov != d.selfID {
 				// Create a new worker for this provider if not already created
 				if _, ok := d.worker.Load(prov); !ok {
