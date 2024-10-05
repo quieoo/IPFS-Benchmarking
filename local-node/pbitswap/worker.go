@@ -41,6 +41,10 @@ type peerToDispatch struct {
 
 	working bool
 
+	received_blks int
+	desired_blks  int
+	request_blks  int
+
 	// visitnumber int
 	// visittime   float64
 	// channeltime float64
@@ -325,18 +329,13 @@ func (p *peerToDispatch) run() {
 	var closeOnceDone sync.Once           // 用于确保通道只关闭一次
 	var wg sync.WaitGroup
 
-	// 初始化一些控制参数
-	receivedBlkCount := 0
-	reduntantBlkCount := 0
-	totalRequests := 0
-
 	// 启动第一个批次块的获取
 	toRequest := p.dispatcher.squeeze(*p)
 	if len(toRequest) == 0 {
 		close(doneCh)
 		return
 	}
-	totalRequests = len(toRequest)
+	p.request_blks += len(toRequest)
 	p.dispatcher.blkPending(toRequest)
 
 	wg.Add(1)
@@ -349,21 +348,21 @@ func (p *peerToDispatch) run() {
 			// 处理接收到的 block
 			status := p.processBlock(blk)
 			if status == 1 {
-				reduntantBlkCount++
-				receivedBlkCount++
+				p.received_blks++
 			} else if status == 0 {
-				receivedBlkCount++
+				p.received_blks++
+				p.desired_blks++
 			}
 			// 实时维护冗余块比例并根据比例调整请求宽度
-			reduntantRatio := float64(reduntantBlkCount) / float64(receivedBlkCount)
-			if reduntantRatio > 0.3 {
-				p.requestEachTime = int(float64(p.MaxRequest) * (1 - reduntantRatio)) // 例如：快速缩小请求宽度
+			uniquentRatio := float64(p.desired_blks) / float64(p.received_blks)
+			if uniquentRatio < 0.7 {
+				p.requestEachTime = int(float64(p.MaxRequest) * uniquentRatio) // 例如：快速缩小请求宽度
 			}
 			if p.requestEachTime < 1 {
 				p.requestEachTime = 1
 			}
 
-			logger.Debugf("Worker %s received block %s, status: %d , reduntantRatio: %f, requestEachTime: %d", p.id, blk.Cid(), status, reduntantRatio, p.requestEachTime)
+			logger.Debugf("Worker %s received block %s, status: %d , uniqueRatio: %f, requestEachTime: %d", p.id, blk.Cid(), status, uniquentRatio, p.requestEachTime)
 
 			// 判断是否所有块都已接收
 			if p.dispatcher.blkAllFilled() {
@@ -378,12 +377,11 @@ func (p *peerToDispatch) run() {
 		case <-thresholdCh:
 			toRequest = p.dispatcher.squeeze(*p)
 			if len(toRequest) > 0 {
-				totalRequests += len(toRequest)
+				p.request_blks += len(toRequest)
 				p.dispatcher.blkPending(toRequest)
 				wg.Add(1)
 				go p.getBlocksFrom(toRequest, blockCh, thresholdCh, doneCh, &wg)
 			}
-
 		case <-doneCh:
 			// 完成所有块请求
 			logger.Debugf("Worker %s finished all block requests", p.id)
