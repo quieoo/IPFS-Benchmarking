@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sort"
 	"sync"
-	"time"
 
+	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	util "github.com/ipfs/go-ipfs-util"
 	format "github.com/ipfs/go-ipld-format"
@@ -20,6 +20,7 @@ type peerToDispatch struct {
 	sequence        []cid.Cid
 	distances       *sync.Map //distance is mixed with self-cid and provider-cid, used to randomly re-order request sequence
 	requestEachTime int
+	MaxRequest      int
 
 	getter     format.NodeGetter
 	ctx        context.Context
@@ -235,15 +236,17 @@ func (p *peerToDispatch) absorb(blks []cid.Cid) {
 
 // squeeze return peer.requestEachTime cids for requesting
 func (d *Dispatcher) squeeze(peer peerToDispatch) []cid.Cid {
-	//fmt.Printf("peer %s, sequeeze from %d targets\n",peer.id,len(peer.sequence))
-
-	//peer.sequence=Random(peer.sequence)
-	//peer.requestEachTime=10
+	//fmt.Printf("peer %s, sequeeze from %d targets\n", peer.id, len(peer.sequence))
 
 	var result []cid.Cid
 	fetched := 0
+	// totalCids := len(peer.sequence)
+	// allowedPending := totalCids / 5 // 不超过1/5的CID可以为Pending
+	// pendingCount := 0
+
+	// 首先处理所有状态为 Empty 的块
 	for _, cid := range peer.sequence {
-		v, ok := d.queryState.Load(cid)
+		v, ok := d.blkQuery(cid)
 		if !ok {
 			fmt.Println("peerToDispatch ask for non-exists cid")
 			return nil
@@ -256,26 +259,47 @@ func (d *Dispatcher) squeeze(peer peerToDispatch) []cid.Cid {
 			}
 		}
 	}
+
+	// 如果还没有达到需要的块数，再处理 Pending 状态的块，但要限制 Pending 的比例
 	if fetched < peer.requestEachTime {
 		for _, cid := range peer.sequence {
-			v, ok := d.queryState.Load(cid)
+			v, ok := d.blkQuery(cid)
 			if !ok {
 				fmt.Println("peerToDispatch ask for non-exists cid")
 				return nil
 			}
 			if v == Pending {
+				// 检查当前 Pending 状态的数量是否超过1/5的限制
+				// if pendingCount < allowedPending {
 				result = append(result, cid)
+				// pendingCount++
 				fetched++
 				if fetched >= peer.requestEachTime {
 					break
 				}
+				// }
 			}
 		}
 	}
 	return result
 }
 
-// peer worker main loop:
+// run starts the main loop of a peer worker, which is responsible for
+// requesting blocks from a peer, processing received blocks, and
+// adjusting the request width based on the received block ratio.
+// The main loop listens to the block channel and the threshold channel,
+// and uses the received blocks to update the request width in real-time.
+// The main loop also checks whether all blocks have been received and
+// closes the done channel to signal the completion of all block requests.
+// The main loop starts by requesting the first batch of blocks, and
+// then enters a loop to listen to the block channel and the threshold
+// channel. In each iteration, it checks whether there are new blocks
+// received, or whether the threshold has been reached. If there are new
+// blocks, it processes them and updates the request width based on the
+// received block ratio. If the threshold has been reached, it requests
+// the next batch of blocks. The main loop continues until all blocks
+// have been received, at which point it closes the done channel and
+// returns.
 func (p *peerToDispatch) run() {
 	logger.Debugf("Worker %s start working", p.id)
 
@@ -283,136 +307,167 @@ func (p *peerToDispatch) run() {
 	p.working = true
 	p.workinglock.Unlock()
 
-	// build a bitswap connection with target peer
+	// 建立连接
 	p.getter.(format.PeerGetter).PeerConnect(p.id)
 
 	defer func() {
 		logger.Debugf("Worker %s has done, effectivness: %d", p.id, p.effective)
-		//p.dispatcher.worker.Delete(p.id)
 		p.workinglock.Lock()
 		p.working = false
 		p.workinglock.Unlock()
 		p.dispatcher.monitor.updateEffects(p.id, p.effective)
-		//dispatch_finish = true
-		//fmt.Printf("%s visit %d, use %f, channel use %f\n",p.id,p.visitnumber,p.visittime/float64(p.visitnumber),p.channeltime/float64(p.visitnumber))
-		//fmt.Printf("%s prepare %d, use %f, request use %f \n",p.id,p.preparenumber,p.preparetime/float64(p.preparenumber), p.requesttime/float64(p.preparenumber))
 	}()
-	limiter := time.NewTicker(p.da.tolerate) //time-out threshold
 
+	// 创建主 routine 接收 block 的通道
+	blockCh := make(chan blocks.Block, 100) // 缓冲区大小设置为 100
+	doneCh := make(chan struct{})
+	thresholdCh := make(chan struct{}, 1) // 阈值信号通道只需要 1 个缓冲
+	var closeOnceDone sync.Once           // 用于确保通道只关闭一次
+	var wg sync.WaitGroup
+
+	// 初始化一些控制参数
+	receivedBlkCount := 0
+	reduntantBlkCount := 0
+	totalRequests := 0
+
+	// 启动第一个批次块的获取
+	toRequest := p.dispatcher.squeeze(*p)
+	if len(toRequest) == 0 {
+		close(doneCh)
+		return
+	}
+	totalRequests = len(toRequest)
+	p.dispatcher.blkPending(toRequest)
+
+	wg.Add(1)
+	go p.getBlocksFrom(toRequest, blockCh, thresholdCh, doneCh, &wg)
+
+	// 主 routine 开始监听 block 接收和阈值触发信号
 	for {
-		//fmt.Printf("peer %s, sequence %v\n",p.id,p.sequence)
-		// p.preparenumber++
-		// prestart := time.Now()
+		select {
+		case blk := <-blockCh:
+			// 处理接收到的 block
+			status := p.processBlock(blk)
+			if status == 1 {
+				reduntantBlkCount++
+				receivedBlkCount++
+			} else if status == 0 {
+				receivedBlkCount++
+			}
+			// 实时维护冗余块比例并根据比例调整请求宽度
+			reduntantRatio := float64(reduntantBlkCount) / float64(receivedBlkCount)
+			if reduntantRatio > 0.3 {
+				p.requestEachTime = int(float64(p.MaxRequest) * (1 - reduntantRatio)) // 例如：快速缩小请求宽度
+			}
+			if p.requestEachTime < 1 {
+				p.requestEachTime = 1
+			}
 
-		toRequest := p.dispatcher.squeeze(*p)
-		requests := new(sync.Map)
-		numOfRequest := len(toRequest)
-		totalrequests := numOfRequest
-		reduntant_blk := 0
+			logger.Debugf("Worker %s received block %s, status: %d , reduntantRatio: %f, requestEachTime: %d", p.id, blk.Cid(), status, reduntantRatio, p.requestEachTime)
 
-		//fmt.Printf("peer %s, sequeeze out targets %v\n",p.id,toRequest)
-		logger.Debugf("Worker %s, request %d blks, already totally receive %d", p.id, totalrequests, p.dispatcher.collectedblk)
+			// 判断是否所有块都已接收
+			if p.dispatcher.blkAllFilled() {
+				// logger.Debugf("Worker %s received all blocks", p.id)
+				// 使用 sync.Once 确保通道只被关闭一次
+				closeOnceDone.Do(func() {
+					close(doneCh) // 关闭主 routine 的完成信号
+				})
+				p.finish <- p.id
+			}
 
-		if numOfRequest <= 0 {
-			p.finish <- p.id
+		case <-thresholdCh:
+			toRequest = p.dispatcher.squeeze(*p)
+			if len(toRequest) > 0 {
+				totalRequests += len(toRequest)
+				p.dispatcher.blkPending(toRequest)
+				wg.Add(1)
+				go p.getBlocksFrom(toRequest, blockCh, thresholdCh, doneCh, &wg)
+			}
+
+		case <-doneCh:
+			// 完成所有块请求
+			logger.Debugf("Worker %s finished all block requests", p.id)
+			close(blockCh) // 关闭 block 通道
+			wg.Wait()      // 等待所有 goroutine 完成
 			return
 		}
-		p.dispatcher.blkPending(toRequest)
-		for _, r := range toRequest {
-			requests.Store(r, Pending)
-		}
-		// p.preparetime += time.Now().Sub(prestart).Seconds() * float64(1000)
+	}
+}
 
-		// restart := time.Now()
-		blocks := p.getter.(format.PeerGetter).GetBlocksFrom(p.ctx, toRequest, p.id) //send requests
-		// p.requesttime += time.Now().Sub(restart).Seconds() * float64(1000)
-
-		start := time.Now()
-		// readytochannel := time.Now()
-		limiter.Reset(p.da.tolerate)
-		for {
-			select {
-			case blk, ok := <-blocks:
-				// p.channeltime += time.Now().Sub(readytochannel).Seconds() * float64(1000)
-				// p.visitnumber++
-				// visitstart := time.Now()
-
-				if !ok {
-					//fmt.Printf("block channel finish--%s\n",p.id)
-					goto NextRound2
-				}
-				need := false
-
-				//current node wants
-				state2, ok2 := requests.Load(blk.Cid())
-				if ok2 && state2 == Pending {
-					requests.Store(blk.Cid(), Filled)
-					numOfRequest--
-					//no other worker take this job
-					state1, ok1 := p.dispatcher.queryState.Load(blk.Cid())
-					if ok1 && state1 != Filled {
-						limiter.Reset(p.da.tolerate)
-						need = true
-						p.dispatcher.queryState.Store(blk.Cid(), Filled)
-						nd, err := format.Decode(blk)
-						if err != nil {
-							fmt.Println(err.Error())
-						}
-						navigableNode := format.NewNavigableIPLDNode(nd, p.getter)
-
-						//fmt.Printf("visit blk %s from %s\n",blk.Cid(),p.id)
-
-						p.effective++
-						//fmt.Printf("%s %s requesting lock\n",time.Now().String(),p.id)
-						p.dispatcher.writeNodeLock.Lock()
-						//fmt.Printf("%s %s got lock\n",time.Now().String(),p.id)
-						err = p.visit(navigableNode) //visit block
-						p.dispatcher.collectedblk++
-						p.dispatcher.writeNodeLock.Unlock()
-						if err != nil {
-							fmt.Println(err.Error())
-						}
-						childs := navigableNode.GetChilds() //update its children, if exist
-						if len(childs) > 0 {
-							p.dispatcher.blkFind(childs)
-						}
-					}
-				}
-
-				// p.visittime += time.Now().Sub(visitstart).Seconds() * float64(1000)
-				// readytochannel = time.Now()
-
-				if !need {
-					p.dispatcher.monitor.updateRedundant()
-					reduntant_blk++
-					continue
-				}
-
-				if numOfRequest <= 0 {
-					goto NextRound2
-				}
-
-			case <-limiter.C:
-				logger.Debugf("Worker %s, Current Batch Request has exceeded the timeout threshold %d", p.id, limiter.C)
-				goto NextRound2
-			case <-p.ctx.Done():
+// 额外的 goroutine 调用 GetBlocksFrom，并在接收到 60% 的块时通知主 routine
+func (p *peerToDispatch) getBlocksFrom(toRequest []cid.Cid, blockCh chan<- blocks.Block, thresholdCh chan<- struct{}, doneCh <-chan struct{}, wg *sync.WaitGroup) {
+	logger.Debugf("Worker %s start new routine to send %d block requests to peers: %v", p.id, len(toRequest), toRequest)
+	defer wg.Done()
+	blocks := p.getter.(format.PeerGetter).GetBlocksFrom(p.ctx, toRequest, p.id)
+	receivedCount := 0
+	totalCount := len(toRequest)
+	preloaded := 0
+	if totalCount <= 1 {
+		preloaded = 1
+	}
+	for {
+		select {
+		case blk, ok := <-blocks:
+			if !ok {
+				// 通道关闭，退出
 				return
 			}
-		}
-	NextRound2:
-		// adjust requestEachTime dynamically after requesting
-		p.requestEachTime = p.da.Adjust6(totalrequests, totalrequests-numOfRequest, reduntant_blk, time.Now().Sub(start))
-		// p.requestEachTime = p.da.Adjust5(float64(totalrequests-numOfRequest)/float64(totalrequests), time.Now().Sub(start), totalrequests-numOfRequest)
 
-		// receivedBlocksRatio := float64(totalrequests-numOfRequest) / float64(totalrequests)
-		// // 动态调整Limiter时间
-		// if receivedBlocksRatio < 0.5 {
-		// 	limiter.Reset(p.da.tolerate + time.Duration(100*time.Millisecond)) // 增加超时时间
-		// } else if receivedBlocksRatio > 0.9 {
-		// 	limiter.Reset(limiterDuration - time.Duration(50*time.Millisecond)) // 减少超时时间
-		// }
-		//p.requestEachTime = 10
-		logger.Debugf("Worker %s, finish current round, left blk: %d", p.id, numOfRequest)
+			select {
+			case <-doneCh:
+				return
+			case blockCh <- blk:
+				// logger.Debugf("Worker %s received block %s", p.id, blk.Cid())
+				receivedCount++
+			}
+			// 如果接收到超过 60% 的块，通知主 routine
+			if preloaded == 0 && float64(receivedCount)/float64(totalCount) >= 0.6 {
+				// logger.Debugf("Worker %s received 60%% blocks", p.id)
+				select {
+				case <-doneCh:
+					return
+				case thresholdCh <- struct{}{}:
+				}
+				preloaded = 1
+			}
+
+		case <-p.ctx.Done():
+			return
+		case <-doneCh:
+			// 如果 doneCh 关闭，退出
+			return
+		}
+	}
+}
+
+// 处理每一个接收到的 block
+// 状态：0-成功，1-冗余，2-失败
+func (p *peerToDispatch) processBlock(blk blocks.Block) int {
+	// 当前节点是否需要这个块
+	state, ok := p.dispatcher.blkQuery(blk.Cid())
+	if ok && state != Filled {
+		// 更新块的状态
+		p.dispatcher.blkFill(blk.Cid())
+		nd, err := format.Decode(blk)
+		if err != nil {
+			fmt.Println(err.Error())
+			return 2
+		}
+
+		navigableNode := format.NewNavigableIPLDNode(nd, p.getter)
+		p.effective++
+
+		// 处理块的子节点
+		childs := navigableNode.GetChilds()
+		if len(childs) > 0 {
+			p.dispatcher.blkFind(childs)
+		}
+		return 0
+	} else if state == Filled {
+		p.dispatcher.monitor.updateRedundant()
+		return 1
+	} else {
+		return 2
 	}
 }
 
@@ -423,14 +478,15 @@ func (p *peerToDispatch) Stop() {
 // InitRequestBlkNumber determines the initial block request batch size of each peer worker, according to given total block number
 func (p *peerToDispatch) InitRequestBlkNumber(blkNumber uint64) {
 	if blkNumber <= 1 {
-		p.requestEachTime = 1
+		p.MaxRequest = 1
 	} else {
 		if blkNumber > 20 {
-			p.requestEachTime = 10
+			p.MaxRequest = 10
 		} else {
-			p.requestEachTime = int(blkNumber) / 2
+			p.MaxRequest = int(blkNumber) / 2
 		}
 	}
+	p.requestEachTime = p.MaxRequest
 	//p.requestEachTime=5
 	p.da.L = p.requestEachTime
 

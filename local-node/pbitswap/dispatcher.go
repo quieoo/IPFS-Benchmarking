@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -20,7 +19,8 @@ var logger = logging.Logger("pbitswap")
 type Dispatcher struct {
 	path           []format.NavigableNode
 	selfID         peer.ID
-	queryState     *sync.Map
+	queryState     map[cid.Cid]int
+	queryStateLock sync.RWMutex
 	cids           []cid.Cid
 	left           int
 	wantBlocksEach int
@@ -46,7 +46,7 @@ func NewDisPatcher(ctx context.Context, root format.NavigableNode) *Dispatcher {
 		ctx:            ctx,
 		path:           []format.NavigableNode{root},
 		wantBlocksEach: 10,
-		queryState:     new(sync.Map),
+		queryState:     make(map[cid.Cid]int),
 		cids:           []cid.Cid{},
 		monitor:        NewMonitor(),
 		writeNodeLock:  new(sync.Mutex),
@@ -68,15 +68,19 @@ var closeOnce sync.Once // 确保通道只关闭一次
 
 // blkFind updates the dispatcher with new CIDs and informs workers
 func (d *Dispatcher) blkFind(cids []cid.Cid) {
-	d.left += len(cids)
+	d.queryStateLock.Lock() // 写锁
+	add := 0
 	for _, c := range cids {
-		_, has := d.queryState.Load(c)
+		_, has := d.queryState[c]
 		if has {
-			return // Skip if another worker has already stored this CID
+			continue // Skip if another worker has already stored this CID
 		}
-		d.queryState.Store(c, Empty)
+		add++
+		d.queryState[c] = Empty
 		d.cids = append(d.cids, c)
 	}
+	d.left += add
+	d.queryStateLock.Unlock() // 释放写锁
 
 	// Parallelize block dispatching using goroutines
 	d.worker.Range(func(key, value interface{}) bool {
@@ -86,55 +90,80 @@ func (d *Dispatcher) blkFind(cids []cid.Cid) {
 }
 
 // blkFill marks a CID as filled and decrements remaining blocks
-func (d *Dispatcher) blkFill(c cid.Cid) bool {
-	d.queryState.Store(c, Filled)
+func (d *Dispatcher) blkFill(c cid.Cid) {
+	d.queryStateLock.Lock() // 写锁
+	d.queryState[c] = Filled
 	d.left--
-	return d.left > 0
+	d.queryStateLock.Unlock() // 释放写锁
 }
 
-// blkRequest generates a list of CIDs to request from a peer
-func (d *Dispatcher) blkRequest(peer *peerToDispatch) []cid.Cid {
-	var result []cid.Cid
-	fetched := 0
-	for _, cid := range peer.sequence {
-		v, ok := d.queryState.Load(cid)
-		if !ok {
-			fmt.Println("peerToDispatch requested non-existent CID")
-			return nil
-		}
-		if v == Empty {
-			result = append(result, cid)
-			fetched++
-			if fetched >= d.wantBlocksEach {
-				break
-			}
-		}
-	}
-	// If more blocks are needed, check for pending blocks
-	if fetched < d.wantBlocksEach {
-		for _, cid := range peer.sequence {
-			v, ok := d.queryState.Load(cid)
-			if !ok {
-				fmt.Println("peerToDispatch requested non-existent CID")
-				return nil
-			}
-			if v == Pending {
-				result = append(result, cid)
-				fetched++
-				if fetched >= d.wantBlocksEach {
-					break
-				}
-			}
-		}
-	}
-	return result
-}
+// // blkRequest generates a list of CIDs to request from a peer
+// func (d *Dispatcher) blkRequest(peer *peerToDispatch) []cid.Cid {
+// 	var result []cid.Cid
+// 	fetched := 0
+
+// 	d.queryStateLock.RLock() // 读锁
+// 	for _, cid := range peer.sequence {
+// 		v, ok := d.queryState[cid]
+// 		if !ok {
+// 			fmt.Println("peerToDispatch requested non-existent CID")
+// 			d.queryStateLock.RUnlock()
+// 			return nil
+// 		}
+// 		if v == Empty {
+// 			result = append(result, cid)
+// 			fetched++
+// 			if fetched >= d.wantBlocksEach {
+// 				break
+// 			}
+// 		}
+// 	}
+// 	// If more blocks are needed, check for pending blocks
+// 	if fetched < d.wantBlocksEach {
+// 		for _, cid := range peer.sequence {
+// 			v, ok := d.queryState[cid]
+// 			if !ok {
+// 				fmt.Println("peerToDispatch requested non-existent CID")
+// 				d.queryStateLock.RUnlock()
+// 				return nil
+// 			}
+// 			if v == Pending {
+// 				result = append(result, cid)
+// 				fetched++
+// 				if fetched >= d.wantBlocksEach {
+// 					break
+// 				}
+// 			}
+// 		}
+// 	}
+// 	d.queryStateLock.RUnlock() // 释放读锁
+
+// 	return result
+// }
 
 // blkPending marks a list of CIDs as pending
 func (d *Dispatcher) blkPending(cids []cid.Cid) {
+	d.queryStateLock.Lock() // 写锁
 	for _, c := range cids {
-		d.queryState.Store(c, Pending)
+		d.queryState[c] = Pending
 	}
+	d.queryStateLock.Unlock() // 释放写锁
+}
+
+// ExistsInQueryState checks if a specific CID exists in queryState
+func (d *Dispatcher) blkQuery(c cid.Cid) (int, bool) {
+	d.queryStateLock.RLock()          // 使用读锁来并发读取
+	status, exists := d.queryState[c] // 检查 map 中是否有该 cid
+	d.queryStateLock.RUnlock()        // 解锁
+	return int(status), exists
+}
+
+// AllFilledInQueryState checks if all CIDs in queryState have been marked as Filled
+func (d *Dispatcher) blkAllFilled() bool {
+	d.queryStateLock.RLock()         // 使用读锁来遍历 queryState
+	defer d.queryStateLock.RUnlock() // 确保方法结束时解锁
+
+	return d.left == 0
 }
 
 type ProviderRole int32
@@ -200,21 +229,25 @@ func (d *Dispatcher) Dispatch3(visit format.Visitor) error {
 			if !ok {
 				return errors.New("channel receive failed")
 			}
-
-			allends := true
-			d.worker.Range(func(key, value interface{}) bool {
-				if value.(*peerToDispatch).working {
-					allends = false
-					return false
-				}
-				return true
-			})
-
-			if allends {
+			if d.blkAllFilled() {
 				dispatcher_close = true
 				d.cancle()
 				return nil
 			}
+			// allends := true
+			// d.worker.Range(func(key, value interface{}) bool {
+			// 	if value.(*peerToDispatch).working {
+			// 		allends = false
+			// 		return false
+			// 	}
+			// 	return true
+			// })
+
+			// if allends {
+			// 	dispatcher_close = true
+			// 	d.cancle()
+			// 	return nil
+			// }
 
 		case <-d.ctx.Done():
 			return nil
