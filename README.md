@@ -73,4 +73,8 @@ Download files with enabled PBitswap (**Provider-Centric Block Exchange**) in `X
 Download files with enabled **Response-Optimized Content Query Strategy** in `XIPFS` (PeerRH), the parameter `B` is used to balance the physical distance and logical distance (higher `B` values means the physical distance is more important). `-loadsavecache` load the historical communication information as the basis of physical distance from file "cache.txt".
 
 ## CIPFS
-refer to [IPFS Network Indexer](Centralized_Impelmentation/IPFS_Network_Indexer/instruction.md).
+Refer to [IPFS Network Indexer](Centralized_Impelmentation/IPFS_Network_Indexer/instruction.md).
+
+# Experimental Instructions and Setup
+
+Refer to the docs under `Experiments instructions`

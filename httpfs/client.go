@@ -135,9 +135,9 @@ func Upload(filenames string, filesize int, filenumber int, host string, uploadT
 	createDirIfNotExist("./temp")
 
 	for i := 0; i < filenumber; i++ {
-		if i%100 == 0 {
-			fmt.Printf("uplaoding %d\n", i)
-		}
+		
+		fmt.Printf("uplaoding %d\n", i)
+		
 		//create temporary file
 		name := fmt.Sprintf("%d-%d", filesize, i)
 		subs := NewLenChars(filesize, StdChars)
@@ -230,9 +230,10 @@ func Download(filenames string, downloadfilepath string, concurrentGet int, host
 		go func(theOrder int) {
 			defer wg.Done()
 			for j := 0; j < len(allFileName[theOrder]); j++ {
-				if j%10 == 0 {
-					fmt.Printf("worker-%d downloaded %d\n", theOrder, j)
-				}
+				fmt.Printf("worker-%d downloaded %d\n", theOrder, j)
+				// if j%10 == 0 {
+				// 	fmt.Printf("worker-%d downloaded %d\n", theOrder, j)
+				// }
 				toRequest := allFileName[theOrder][j]
 				fileSizeStr := strings.Split(toRequest, "-")[0]
 				fileSize, _ := strconv.Atoi(fileSizeStr)
@@ -256,6 +257,7 @@ func Download(filenames string, downloadfilepath string, concurrentGet int, host
 					return
 				}
 				downloadTimer.Update(time.Now().Sub(downloadstrat))
+				fmt.Printf("download with %s \n", time.Now().Sub(downloadstrat).String())
 
 				if err != nil {
 					fmt.Printf("thread %d downloading stall caused by %s", theOrder, err.Error())

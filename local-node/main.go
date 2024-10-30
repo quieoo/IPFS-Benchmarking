@@ -21,8 +21,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ipfs/go-cid"
-	_ "github.com/ipfs/go-cid"
 	config "github.com/ipfs/go-ipfs-config"
 	files "github.com/ipfs/go-ipfs-files"
 	"github.com/ipfs/go-ipfs/core"
@@ -37,9 +35,11 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
 
+	"math"
 	"math/rand"
-
 	gometrcs "github.com/rcrowley/go-metrics"
+	cid "github.com/ipfs/go-cid"
+	"encoding/json"
 )
 
 func setupPlugins(externalPluginsPath string) error {
@@ -428,6 +428,8 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 			defer wg.Done()
 			downTimer := gometrcs.NewTimer()
 			fileSize := int64(0)
+			// output file cids
+			fmt.Printf("worker-%d downloading %d files\n", theOrder, len(fileCid[theOrder]))
 			for j := 0; j < len(fileCid[theOrder]); j++ {
 				ctx_time, _ := context.WithTimeout(ctx, 60*time.Minute)
 				cid := fileCid[theOrder][j]
@@ -444,6 +446,7 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 				if fileSize == 0 {
 					fileSize, _ = rootNode.Size()
 				}
+				// fmt.Println("file size: ", fileSize)
 				if metrics.CMD_EnableMetrics {
 					metrics.GetNode.UpdateSince(start)
 				}
@@ -496,6 +499,148 @@ func DownloadSerial(ctx context.Context, ipfs icore.CoreAPI, cids string, pag bo
 	}
 	wg.Wait()
 }
+func FindProviderQPS(qps int, ctx context.Context, ipfs icore.CoreAPI, cidFile string, numProviders int) {
+
+    // 打开 CID 文件
+    file, err := os.Open(cidFile)
+    if err != nil {
+        fmt.Printf("无法打开 CID 文件: %v\n", err)
+        return
+    }
+    defer file.Close()
+
+    // 从 CID 文件中读取所有的 CID
+    inputReader := bufio.NewReader(file)
+    var cidList []string
+    for {
+        cidLine, readErr := inputReader.ReadString('\n')
+        cidLine = strings.TrimSpace(cidLine) // 去掉换行符和多余空格
+        if readErr == io.EOF {
+            break
+        }
+        if cidLine != "" {
+            cidList = append(cidList, cidLine) // 添加到 CID 列表
+        }
+    }
+
+    if len(cidList) == 0 {
+        fmt.Println("CID 文件中没有有效的 CID")
+        return
+    }
+    fmt.Printf("Total CIDs: %d\n", len(cidList))
+
+    // 用于累加所有请求的执行时间
+    var totalDuration time.Duration
+    var totalRequests int
+
+    var wg sync.WaitGroup
+    ticker := time.NewTicker(time.Second) // 定时器控制每秒发起的 FindProviders 请求数
+    done := make(chan struct{})           // 用于主线程的等待
+    var once sync.Once                    // 用于确保只关闭 done 通道一次
+
+	// 捕捉退出信号
+    quit := make(chan os.Signal, 1)
+    signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+
+
+    // FindProviders 请求的函数
+    findProvidersFunc := func(cidStr string, index int) {
+        defer wg.Done() // 请求完成后减少 WaitGroup 计数
+        // fmt.Printf("Requesting CID: %s\n", cidStr)
+
+        // 记录开始时间
+        start := time.Now()
+
+        // 解析 CID
+        p := icorepath.New(cidStr)
+
+        // 调用 FindProviders 接口，传递可变参数列表形式的选项
+        pchan, err := ipfs.Dht().FindProviders(ctx, p, options.Dht.NumProviders(numProviders))
+        if err != nil {
+            fmt.Printf("FindProviders 请求 %d 时出错: %v\n", index, err)
+            return
+        }
+
+        // 处理查找到的提供者信息
+        foundProviders := 0
+        for provider := range pchan {
+            provider.ID.Pretty() // 模拟处理
+            foundProviders++
+        }
+
+        // 记录结束时间
+        duration := time.Since(start)
+
+        // 累加执行时间
+        totalDuration += duration
+        totalRequests++
+        // fmt.Printf("Request for CID %s finished, took %.2f ms\n", cidStr, duration.Seconds()*1000)
+    }
+
+     // 启动定时器，控制每秒发起 qps 个 FindProviders 请求
+    go func() {
+        waitingForCompletion := false // 引入标志位，防止重复创建等待线程
+
+        for {
+            select {
+            case <-ticker.C:
+                // 收集平均时间并输出
+                if totalRequests > 0 {
+                    averageTime := totalDuration.Seconds() * 1000 / float64(totalRequests)
+                    fmt.Printf("Average Time: %.2f ms, totalCount: %d, cidlist: %d\n", averageTime, totalRequests, len(cidList))
+                } else {
+                    fmt.Println("No requests made yet.")
+                }
+
+                // 处理 CID 列表中的 CID
+                if len(cidList) > 0 {
+                    for i := 0; i < qps && len(cidList) > 0; i++ {
+                        cidStr := cidList[0]
+                        cidList = cidList[1:] // 移除第一个 CID
+                        wg.Add(1)
+                        go findProvidersFunc(cidStr, i)
+                    }
+                }
+
+                // 当 cidList 为空时，只启动一次等待 Goroutine
+                if len(cidList) == 0 && !waitingForCompletion {
+                    waitingForCompletion = true
+                    fmt.Println("All requests have been sent, waiting for completion...")
+
+                    go func() {
+                        wg.Wait() // 等待所有 Goroutine 完成
+                        fmt.Println("All requests completed.")
+                        once.Do(func() {
+                            close(done) // 确保只关闭一次
+                        })
+                    }()
+                }
+
+			case <-quit: // 捕捉到退出信号时执行
+                fmt.Println("Received interrupt signal, exiting immediately...")
+                ticker.Stop() // 停止定时器
+                once.Do(func() {
+                    close(done) // 确保只关闭一次
+                })
+                return
+            }
+        }
+    }()
+	
+
+    <-done // 主线程等待，直到所有请求完成
+
+    // 计算平均执行时间
+    if totalRequests > 0 {
+        avgDuration := totalDuration.Seconds()*1000 / float64(totalRequests)
+        fmt.Printf("所有 FindProviders 请求已完成，平均执行时间: %v ms\n", avgDuration)
+    } else {
+        fmt.Println("没有完成任何请求")
+    }
+}
+
+
+
 
 func TraceUpload(index int, servers int, trace_docs string, chunker string, ipfs icore.CoreAPI, ctx context.Context) {
 	// in trace workload simulation, we no longer do manually provide, those are all left to original mechanism handle
@@ -839,7 +984,686 @@ func ipfs_backend(ctx context.Context, ipfs icore.CoreAPI) {
 	fmt.Printf("Received signal: %v\n", sig)
 }
 
+func UploadQPS(qps int, size, number int, ctx context.Context, ipfs icore.CoreAPI, cids string, redun int, chunker string, reGenerate bool) {
+	cidFile, err := os.Create(cids)
+	if err != nil {
+		fmt.Printf("Failed to create CID file: %v", err)
+	}
+	defer func() {
+		cidFile.Close()
+		if metrics.CMD_StallAfterUpload {
+			fmt.Println("Finish Front-End")
+			sigChan := make(chan os.Signal, 1)
+			signal.Notify(sigChan, os.Interrupt, os.Kill, syscall.SIGTERM)
+			select {
+			case <-sigChan:
+				fmt.Println("Interrupt received, shutting down.")
+			case <-ctx.Done():
+				fmt.Println("Context canceled, shutting down.")
+			}
+		}
+	}()
+
+	fmt.Printf("Uploading files with size %d B\n", size)
+	stallChan := make(chan int, number) // 用于等待所有上传完成的 channel
+	var totalUploadTime float64
+	var totalFiles = number
+	var mu sync.Mutex // 保护并发操作的锁
+	cidsList := make([]string, 0)
+	var uploadedFiles int
+	startTime := time.Now() // 记录上传开始时间
+
+	var wg sync.WaitGroup
+	// 上传文件的具体逻辑
+	sendFunc := func(i int) {
+		defer wg.Done()
+		// 在上传前生成随机文件数据
+		fileContent := NewLenChars(size, StdChars) // 动态生成指定大小的随机数据
+		start := time.Now()
+		// 直接上传内存中的数据，而不需要保存到磁盘
+		opts := []options.UnixfsAddOption{
+			options.Unixfs.Chunker(chunker),
+		}
+		if metrics.CMD_ProvideEach {
+			opts = append(opts, options.Unixfs.ProvideThrough())
+		}
+
+		cid, err := ipfs.Unixfs().Add(ctx, files.NewBytesFile([]byte(fileContent)), opts...)
+		if err != nil {
+			fmt.Printf("Error uploading file %d: %v\n", i, err)
+			stallChan <- i
+			return
+		}
+
+		finish := time.Now()
+		uploadTime := finish.Sub(start).Seconds() * 1000
+
+		mu.Lock()
+		totalUploadTime += uploadTime
+		cidsList = append(cidsList, cid.String())
+		uploadedFiles++
+		mu.Unlock()
+
+		// _, err = io.WriteString(cidFile, strings.Split(cid.String(), "/")[2]+"\n")
+		// if err != nil {
+		// 	fmt.Println(err.Error())
+		// }
+		io.WriteString(cidFile, strings.Split(cid.String(), "/")[2]+"\n")
+
+		// 只在channel未关闭时发送
+        select {
+        case stallChan <- i:
+        default:
+        }
+	}
+
+	// 启动定时器，每秒触发一次，启动 qps 个 goroutine 执行文件上传
+	ticker := time.NewTicker(time.Second)
+	lastUploadedFiles := 0 // 记录上一秒上传的文件数量
+	go func() {
+		for range ticker.C {
+			mu.Lock()
+			averageUploadTime := totalUploadTime / float64(uploadedFiles)
+			filesUploadedThisSecond := uploadedFiles - lastUploadedFiles
+			lastUploadedFiles = uploadedFiles
+			throughput := filesUploadedThisSecond // 每秒上传的文件数
+			mu.Unlock()
+
+			fmt.Printf("Average upload time: %.2f ms, Throughput: %d files/sec\n", averageUploadTime, throughput)
+
+			for i := 0; i < qps && uploadedFiles < totalFiles; i++ {
+				wg.Add(1)
+				go sendFunc(uploadedFiles) // 直接启动 goroutine 进行上传
+			}
+			if uploadedFiles >= totalFiles {
+				ticker.Stop()
+				wg.Wait()
+				close(stallChan) // 在此关闭 channel
+				return
+			}
+		}
+	}()
+
+	// 等待所有文件上传完成
+	for range stallChan {
+		if uploadedFiles >= totalFiles {
+			mu.Lock()
+			averageUploadTime := totalUploadTime / float64(uploadedFiles)
+			mu.Unlock()
+
+			// 计算总吞吐率
+			totalTime := time.Since(startTime).Seconds() // 计算总共花费的时间（秒）
+			averageThroughput := float64(uploadedFiles) / totalTime // 平均吞吐率（文件数/秒）
+
+			fmt.Printf("All files uploaded. Average upload time: %.2f ms\n", averageUploadTime)
+			fmt.Printf("Total time: %.2f seconds, Average throughput: %.2f files/sec\n", totalTime, averageThroughput)
+			return
+		}
+	}
+}
+
+
+
+// blockchain + IPFS
+
+// FullNode 配置结构
+type Config struct {
+	FullNodeIP string `json:"full_node_ip"`
+	LightNodes []struct {
+		IP string `json:"ip"`
+	} `json:"light_nodes"`
+	BlockPath string `json:"block_path"`
+}
+
+type FullNode struct {
+    ipfs       icore.CoreAPI
+    ctx        context.Context
+    lightNodes []net.Conn
+    blocks     []float64
+    config     *Config  // 添加 config 字段
+
+	totalLatency time.Duration  // 记录总延迟
+    txCount      int            // 记录交易数量（成功上传的区块数量）
+	start        time.Time
+
+}
+func NewFullNode(ipfs icore.CoreAPI, ctx context.Context, config *Config) *FullNode {
+    return &FullNode{
+        ipfs:   ipfs,
+        ctx:    ctx,
+        config: config,  // 初始化 config 字段
+    }
+}
+
+func (fn *FullNode) createBlock(kiloBytes float64) []byte { 
+	blockSize := kiloBytes * 1024
+	// round the blocksize to integer
+
+	block := make([]byte, int(math.Round(float64(blockSize))))
+
+	// 随机填充区块内容
+	rand.Read(block)
+	return block
+}
+
+// 上传区块到IPFS，返回CID
+func (fn *FullNode) uploadBlockToIPFS(block []byte) (string, error) {
+	defer func(){
+		if metrics.CMD_EnableMetrics {
+			metrics.AddTimer.Update(metrics.AddDura)
+			metrics.Provide.Update(metrics.ProvideDura)
+			metrics.Persist.Update(metrics.PersistDura)
+
+			dagTime := metrics.AddDura - metrics.ProvideDura - metrics.PersistDura
+			metrics.Dag.Update(dagTime)
+
+			metrics.FlatfsHasTimer.Update(metrics.FlatfsHasDura)
+			metrics.FlatfsPut.Update(metrics.FlatfsPutDura)
+
+			metrics.FlatfsPutDura = 0
+			metrics.FlatfsHasDura = 0
+			metrics.AddDura = 0
+			metrics.ProvideDura = 0
+			metrics.PersistDura = 0
+		}
+	}()
+	start := time.Now()
+	// 直接上传内存中的数据，而不需要保存到磁盘
+	opts := []options.UnixfsAddOption{
+		options.Unixfs.Chunker("size-262144"),
+	}
+	if metrics.CMD_ProvideEach {
+		opts = append(opts, options.Unixfs.ProvideThrough())
+	}
+	cid, err := fn.ipfs.Unixfs().Add(fn.ctx, files.NewBytesFile(block), opts...)
+	// cid, err := fn.ipfs.Unixfs().Add(fn.ctx, files.NewBytesFile([]byte(block)), opts...)
+	if err != nil {
+		fmt.Printf("Error uploading file: %v\n", err)
+		return "", err
+	}
+
+	// finish := time.Now()
+	// uploadTime := finish.Sub(start).Seconds() * 1000
+	metrics.AddDura += time.Now().Sub(start)
+
+	return cid.Cid().String(), nil
+}
+// 广播CID给所有轻节点
+func (fn *FullNode) broadcastCID(cid string) {
+	for _, conn := range fn.lightNodes {
+		fmt.Fprintf(conn, "%s\n", cid)
+	}
+}
+
+// 等待轻节点确认消息
+func (fn *FullNode) waitForLightNodeConfirmations() {
+	var wg sync.WaitGroup
+
+	for _, conn := range fn.lightNodes {
+		wg.Add(1) // 增加等待组计数
+		go func(c net.Conn) { // 使用 goroutine 并发读取轻节点的确认
+			defer wg.Done() // goroutine 结束后调用 Done
+			buf := make([]byte, 1024)
+			n, err := c.Read(buf)
+			if err != nil {
+				fmt.Println("Error reading from light node:", err)
+				return
+			}
+			if msg := string(buf[:n]); msg == "Confirmation" {
+				fmt.Println("Received confirmation from light node")
+			}
+		}(conn) // 将当前的连接传递给 goroutine
+	}
+
+	wg.Wait() // 等待所有 goroutine 完成
+}
+// 关闭 FullNode 的资源
+func (fn *FullNode) shutdown() {
+    for _, conn := range fn.lightNodes {
+        conn.Close() // 关闭所有轻节点的连接
+    }
+    fmt.Println("FullNode shutdown complete.")
+}
+
+// 输出统计信息，每隔 10 秒调用一次
+func (fn *FullNode) reportStats(ticker *time.Ticker) {
+    for {
+        select {
+        case <-ticker.C:
+			fmt.Println("==========================================");
+                
+            if fn.txCount > 0 {
+                avgLatency := fn.totalLatency / time.Duration(fn.txCount) // 计算平均延迟
+                tps := float64(fn.txCount) / time.Now().Sub(fn.start).Seconds()
+				fmt.Printf("Average Latency: %v | TPS: %.2f\n", avgLatency, tps)
+				
+
+                // // 重置计数器和统计数据
+                // fn.totalLatency = 0
+                // fn.txCount = 0
+            } else {
+                fmt.Println("No transactions in the last 10 seconds.")
+            }
+			fmt.Println("==========================================");
+                
+        }
+    }
+}
+
+func (fn *FullNode) run() {
+	// 设置一个 ticker，每隔 10 秒输出一次统计信息
+	ticker := time.NewTicker(10 * time.Second)
+	go fn.reportStats(ticker)
+	defer ticker.Stop()
+
+	// 设置捕捉中断信号
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+
+	fn.start = time.Now()
+	fmt.Printf("%s: Starting full node...\n", time.Now().String())
+
+	for i := 0; i < len(fn.blocks); i++ {
+		// 创建管道用于接收上传结果和错误信息
+		cidChan := make(chan string, 1)
+		errChan := make(chan error, 1)
+		
+		start := time.Now() // 开始时间，用于计算延迟
+		// 在 goroutine 中执行阻塞操作 (上传区块)
+		go func(blockIndex int) {
+			block := fn.createBlock(fn.blocks[blockIndex])
+			fmt.Printf("%s: Generated block %d with size %.2f KB\n", time.Now().String(), blockIndex, fn.blocks[blockIndex])
+			cid, err := fn.uploadBlockToIPFS(block)
+			if err != nil {
+				errChan <- err // 如果有错误，发送错误到管道
+			} else {
+				cidChan <- cid // 上传成功，发送 CID 到管道
+			}
+		}(i)
+
+		select {
+		case <-stop: // 如果收到中断信号，优雅退出
+			fmt.Println("Received interrupt signal. Shutting down full node...")
+			fn.shutdown() // 执行关闭操作
+			return
+
+		case cid := <-cidChan: // 正常上传完成
+			fmt.Printf("%s: Uploaded block %d with CID %s\n", time.Now().String(), i, cid)
+			fn.broadcastCID(cid)
+			fmt.Printf("%s: Broadcasted CID to light nodes...\n", time.Now().String())
+			fn.waitForLightNodeConfirmations()
+			
+			end := time.Now() // 上传结束时间
+			duration := end.Sub(start) // 计算单次上传的延迟
+
+			fn.totalLatency += duration   // 累加延迟
+			fn.txCount++                  // 记录成功的交易数量
+			fmt.Printf("%s: Received confirmations from light nodes...\n", time.Now().String())
+
+		case err := <-errChan: // 处理上传过程中出现的错误
+			fmt.Printf("Error uploading block: %v\n", err)
+		// case <-time.After(5 * time.Second): // 超时处理
+		// 	fmt.Printf("Timeout while uploading block %d.\n", i)
+		}
+	}
+}
+
+
+// // 运行全节点逻辑：生成区块、上传并广播
+// func (fn *FullNode) run() {
+// 	// 设置一个 ticker，每隔 10 秒输出一次统计信息
+//     ticker := time.NewTicker(10 * time.Second)
+//     go fn.reportStats(ticker)
+// 	defer ticker.Stop()
+
+// 	// 设置捕捉中断信号
+//     stop := make(chan os.Signal, 1)
+//     signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+
+// 	fn.start = time.Now()
+// 	fmt.Printf("%s: Starting full node...\n", time.Now().String())
+// 	for i := 0; i < len(fn.blocks); i++ {
+//         select {
+//         case <-stop: // 如果收到中断信号，优雅退出
+//             fmt.Println("Received interrupt signal. Shutting down full node...")
+// 			fn.shutdown() // 执行关闭操作
+//             return
+//         default:
+// 			start := time.Now() // 开始时间，用于计算延迟
+//             block := fn.createBlock(fn.blocks[i])
+//             fmt.Printf("%s: Generated block %d with size %.2f KB\n", time.Now().String(), i, fn.blocks[i])
+//             cid, err := fn.uploadBlockToIPFS(block)
+//             if err != nil {
+//                 fmt.Println("Error uploading block to IPFS:", err)
+//                 continue
+//             }
+//             fmt.Printf("%s: Uploaded block %d with CID %s\n", time.Now().String(), i, cid)
+
+//             fmt.Printf("Block uploaded with CID: %s\n", cid)
+//             fn.broadcastCID(cid)
+//             fmt.Printf("%s: Broadcasted CID to light nodes...\n", time.Now().String())
+//             fn.waitForLightNodeConfirmations()
+//             fmt.Printf("%s: Received confirmations from light nodes...\n", time.Now().String())
+// 			end := time.Now() // 上传结束时间
+// 			duration := end.Sub(start) // 计算单次上传的延迟
+// 			fn.totalLatency += duration   // 累加延迟
+// 			fn.txCount++                  // 记录成功的交易数量
+//         }
+//     }
+
+// }
+
+func (fn *FullNode) addLightNode(conn net.Conn) {
+	fmt.Printf("New light node: %s\n", conn.RemoteAddr())
+	fn.lightNodes = append(fn.lightNodes, conn)
+}
+
+// 读取配置文件
+func loadConfig(configFile string) (*Config, error) {
+	data, err := ioutil.ReadFile(configFile)
+	if err != nil {
+		return nil, err
+	}
+
+	var config Config
+	err = json.Unmarshal(data, &config)
+	if err != nil {
+		return nil, err
+	}
+
+	return &config, nil
+}
+
+// 从指定路径读取文件中每一行，每一行的格式为 "txs size", txs是一个整数，size是一个浮点数，返回读取的size
+func readSizesFromFile(filePath string) ([]float64, error) {
+    file, err := os.Open(filePath)
+    if err != nil {
+        return nil, err
+    }
+    defer file.Close()
+
+    var sizes []float64
+    scanner := bufio.NewScanner(file)
+    for scanner.Scan() {
+        line := scanner.Text()
+        fields := strings.Fields(line)
+        
+        if len(fields) >= 2 { // 确保有足够的字段
+            size, err := strconv.ParseFloat(fields[1], 64) // 解析第二个字段为浮点数
+            if err != nil {
+                return nil, fmt.Errorf("failed to parse size: %v", err)
+            }
+            sizes = append(sizes, size) // 将解析后的浮点数追加到 sizes 列表
+        }
+    }
+
+    if err := scanner.Err(); err != nil {
+        return nil, fmt.Errorf("error reading file: %v", err)
+    }
+
+    return sizes, nil
+}
+
+// 接受轻节点的连接
+func (fn *FullNode) acceptLightNodeConnection() (net.Conn, error) {
+    ln, err := net.Listen("tcp", fn.config.FullNodeIP)
+    if err != nil {
+        return nil, fmt.Errorf("Error starting listener on %s: %v", fn.config.FullNodeIP, err)
+    }
+    defer ln.Close()
+
+    // 接受连接
+    conn, err := ln.Accept()
+    if err != nil {
+        return nil, err
+    }
+    return conn, nil
+}
+
+// 等待所有轻节点连接
+func (fn *FullNode) waitForLightNodeConnections() {
+    fmt.Println("Waiting for all light nodes to connect...")
+
+    expectedLightNodes := make(map[string]bool)
+    for _, ln := range fn.config.LightNodes {
+        expectedLightNodes[ln.IP] = false // 初始化为 false，表示尚未连接
+    }
+	// 打印expectedLightNodes
+	fmt.Println("Expected light nodes:")
+	for ip, connected := range expectedLightNodes {
+        fmt.Printf("%s: %t\n", ip, connected)
+    }
+
+    // 启动一个监听器
+    ln, err := net.Listen("tcp", fn.config.FullNodeIP)
+    if err != nil {
+        fmt.Printf("Error starting listener on %s: %v\n", fn.config.FullNodeIP, err)
+        return
+    }
+    defer ln.Close() // 在所有节点连接后关闭监听器
+
+    for {
+        // 检查是否所有的轻节点都已连接
+        allConnected := true
+        for _, connected := range expectedLightNodes {
+            if !connected {
+                allConnected = false
+                break
+            }
+        }
+
+        if allConnected {
+            fmt.Println("All light nodes are connected.")
+            return // 当所有节点连接时，退出等待
+        }
+
+        // 等待连接的轻节点
+        conn, err := ln.Accept()
+        if err != nil {
+            fmt.Println("Error accepting connection:", err)
+            continue
+        }
+
+        // 获取轻节点的 IP 地址
+        remoteAddr := conn.RemoteAddr().String()
+        ip := strings.Split(remoteAddr, ":")[0]
+
+        // 检查该连接是否在配置文件中
+        if _, exists := expectedLightNodes[ip]; exists {
+            fn.lightNodes = append(fn.lightNodes, conn) // 将连接存储到 slice 中
+            expectedLightNodes[ip] = true // 标记该 IP 的轻节点已经连接
+            fmt.Printf("Light node %s connected.\n", ip)
+        } else {
+            fmt.Printf("Received connection from unknown node: %s\n", ip)
+            conn.Close() // 关闭未知节点的连接
+        }
+    }
+}
+func FullNodeMain(ipfs icore.CoreAPI, ctx context.Context, configFile string) {
+	config, err := loadConfig(configFile)
+	if err != nil {
+		fmt.Printf("Error loading config file: %v\n", err)
+		return
+	}
+	block_size, err := readSizesFromFile(config.BlockPath)
+	if err != nil {
+		fmt.Printf("Error reading block sizes from file: %v\n", err)
+		return
+	}
+	// 初始化全节点，并传递 config 对象
+    fullNode := NewFullNode(ipfs, ctx, config)
+	for _, size := range block_size {
+		fullNode.blocks = append(fullNode.blocks, size)
+	}
+
+	fullNode.waitForLightNodeConnections()
+
+	// ln, err := net.Listen("tcp", config.FullNodeIP)
+	// if err != nil {
+	// 	fmt.Printf("Error starting listener on %s: %v\n", config.FullNodeIP, err)
+	// 	return
+	// }
+	// defer ln.Close()
+
+	// fmt.Printf("Full node listening on %s...\n", config.FullNodeIP)
+
+	// // 接受轻节点的连接
+	// go func() {
+	// 	for {
+	// 		conn, err := ln.Accept()
+	// 		if err != nil {
+	// 			fmt.Println("Error accepting connection:", err)
+	// 			continue
+	// 		}
+	// 		fullNode.addLightNode(conn)
+	// 	}
+	// }()
+
+	// 开始全节点区块生成和广播流程
+	fullNode.run()
+}
+
+type LightNode struct {
+	ipfs icore.CoreAPI
+	conn net.Conn
+	ctx context.Context
+}
+func NewLightNode(ipfs icore.CoreAPI, ctx context.Context, fullNodeAddr string) *LightNode {
+	conn, err := net.Dial("tcp", fullNodeAddr)
+	if err != nil {
+		fmt.Println("Error connecting to full node:", err)
+		return nil
+	}
+	fmt.Printf("Connected to full node at %s\n", fullNodeAddr)
+
+	return &LightNode{
+		ipfs: ipfs,
+		conn: conn,
+		ctx: ctx,
+	}
+}
+
+
+// 关闭 LightNode 的资源
+func (ln *LightNode) shutdown() {
+    ln.conn.Close() // 关闭与全节点的连接
+    fmt.Println("LightNode shutdown complete.")
+}
+
+// 监听全节点发送的CID消息，下载区块并验证
+func (ln *LightNode) listenForBlocks() {
+	tempDir := "./output"
+	err := os.MkdirAll(tempDir, os.ModePerm)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	// 设置捕捉中断信号
+    stop := make(chan os.Signal, 1)
+    signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+
+
+	downTimer := gometrcs.NewTimer()
+	reader := bufio.NewReader(ln.conn)
+	for {
+		cidChan := make(chan string, 1)
+        errChan := make(chan error, 1)
+
+        // 在新的 goroutine 中执行阻塞的 I/O 操作
+        go func() {
+            cid, err := reader.ReadString('\n')
+            if err != nil {
+                errChan <- err
+            } else {
+                cidChan <- strings.TrimSpace(cid)
+            }
+        }()
+
+        select {
+        case <-stop: // 收到中断信号时优雅退出
+            fmt.Println("Received interrupt signal. Shutting down light node...")
+            ln.shutdown() // 执行关闭操作
+            return
+        case cid := <-cidChan: // 正常读取 CID
+            fmt.Printf("Received CID: %s\n", cid)
+            cid = strings.TrimSpace(cid)
+            fmt.Printf("%s: Received CID from full node: %s\n", time.Now().String(), cid)
+
+            ctx_time, cancel := context.WithTimeout(ln.ctx, 60*time.Minute)
+            defer cancel()
+            p := icorepath.New(cid)
+            start := time.Now()
+            if metrics.CMD_EnableMetrics {
+                metrics.BDMonitor.GetStartTime = start
+            }
+            rootNode, err := ln.ipfs.Unixfs().Get(ctx_time, p)
+            if err != nil {
+                fmt.Printf("error while get %s: %s\n", cid, err.Error())
+                continue
+            }
+            if metrics.CMD_EnableMetrics {
+                metrics.GetNode.UpdateSince(start)
+            }
+            startWrite := time.Now()
+            err = files.WriteTo(rootNode, tempDir+"/"+cid)
+            if err != nil {
+                fmt.Printf("error while write to file %s : %s\n", cid, err.Error())
+                continue
+            }
+			// fmt.Printf("%s: Got blocks for CID %s\n", time.Now().String(), cid)
+            if metrics.CMD_EnableMetrics {
+                metrics.WriteTo.UpdateSince(startWrite)
+                metrics.BDMonitor.GetFinishTime = time.Now()
+                metrics.CollectMonitor()
+                metrics.FPMonitor.CollectFPMonitor()
+            }
+            downTimer.UpdateSince(start)
+			if len(disconnectNeighbours) != 0 {
+				for _, n := range disconnectNeighbours {
+					//fmt.Printf("try to disconnect from %s\n", n)
+					err := DisconnectAllPeers(ln.ctx, ln.ipfs, n)
+					if err != nil {
+						fmt.Printf("failed to disconnect: %v\n", err)
+					}
+				}
+			}
+            // 验证区块
+            fmt.Printf("%s: Block verified. Sending confirmation to full node.\n", time.Now().String())
+            ln.sendConfirmation()
+        case err := <-errChan: // 处理读取错误
+            fmt.Printf("Error reading CID: %v\n", err)
+        }
+    }
+}
+
+// 发送确认消息给全节点
+// 发送确认消息给全节点
+func (ln *LightNode) sendConfirmation() {
+    confirmationMessage := "Confirmation"
+    _, err := fmt.Fprintf(ln.conn, "%s\n", confirmationMessage) // 发送确认消息
+    if err != nil {
+        fmt.Printf("Error sending confirmation to full node: %v\n", err)
+    } else {
+        fmt.Printf("Sent confirmation to full node: %s\n", confirmationMessage)
+    }
+}
+func LightNodeMain(ipfs icore.CoreAPI, ctx context.Context, configFile string) {
+	config, err := loadConfig(configFile)
+	if err != nil {
+		fmt.Printf("Error loading config file: %v\n", err)
+		return
+	}
+	lightNode := NewLightNode(ipfs, ctx, config.FullNodeIP)
+	if lightNode == nil {
+		return
+	}
+
+	// 开始监听全节点广播的区块CID
+	lightNode.listenForBlocks()
+}
+
 var disconnectNeighbours []string
+var coworker bool
 
 func main() {
 
@@ -878,6 +1702,11 @@ func main() {
 	var rmNeighbourPath string
 	var stallafterdownload = false
 
+	var serach_provider_number int
+
+	var qps int
+	var bitcoin_config_path string
+
 	flag.IntVar(&redun_rate, "redun", 0, "The redundancy of the file when Benchmarking upload, 100 indicates that there is exactly the same file in the node, 0 means there is no existence of same file.(default 0)")
 	flag.StringVar(&cmd, "c", "", "operation type\n"+
 		"upload: upload files to ipfs, with -s for file size, -n for file number, -p for concurrent upload threads, -cid for specified uploaded file cid stored\n"+
@@ -890,6 +1719,7 @@ func main() {
 	flag.StringVar(&sizestring, "s", "262144", "file size, for example: 256k, 64m, 1024")
 	flag.IntVar(&filenumber, "n", 1, "file number")
 	flag.IntVar(&parallel, "p", 1, "concurrent operation number")
+	flag.IntVar(&qps, "qps", 1, "Query per second")
 
 	flag.BoolVar(&provideAfterGet, "pag", false, "whether to provide file after get it")
 
@@ -927,12 +1757,29 @@ func main() {
 
 	flag.BoolVar(&(metrics.EnablePbitswap), "enablepbitswap", false, "whether to enable pbitswap(re-order blk request sequence for each provider, load-balanced request batch, find co-workers from providers). "+
 		"Note that if enable pbitswap the metrics will be no longer accurate.")
+	flag.BoolVar(&(metrics.CMD_DisCoWorer), "discoworker", false, "whether to enable CoWorer")
+	flag.BoolVar(&(metrics.CMD_PBitswap_Ticker), "pbticker", false, "whether to enable pbitswap ticker which periodically queries providers. This it is beneficial when the number of providers is low in the network.")
+
 	flag.Float64Var(&(metrics.B), "B", 0.95, "parameter for ax + by")
 
 	flag.BoolVar(&stallafterdownload, "sad", false, "stall after download")
 	flag.IntVar(&(metrics.QueryPeerTime), "qpt", 60, "query peer time")
 	flag.BoolVar(&(metrics.CMD_NoneNeighbourAsking), "nna", false, "skip NeighbourAsking")
+
+	flag.IntVar(&serach_provider_number, "spn", 1, "search provider number")
+	flag.StringVar(&bitcoin_config_path, "bc", "bitcoin_config", "path to bitcoin config file")
+
 	flag.Parse()
+
+	if metrics.EnablePbitswap {
+		fmt.Printf("pbitswap is enabled\n")
+		if metrics.CMD_DisCoWorer {
+			fmt.Printf("CoWorer is Disabled\n")
+		}
+		if metrics.CMD_PBitswap_Ticker {
+			fmt.Printf("PBitswap Ticker is Enabled\n")
+		}
+	}
 
 	// NOTE: check the concurrentGet.
 	if concurrentGet <= 0 {
@@ -963,12 +1810,15 @@ func main() {
 	}
 
 	if metrics.CMD_PeerRH {
+		fmt.Println("PeerRH is enabled")
 		// 假设一个cacheline 需要 200 个字节，那么我们让最多设置 5e6 个 cacheline
 		// 此时需要 1GB 内存，为了测试方便，我们先设置如上个数
 		metrics.GPeerRH = metrics.NewPeerRH(1, metrics.B, 5*1e6) // 历史信息不起作用
 		//GPeerRH = NewPeerRH(1, 1) // 历史信息与逻辑距离 1:1
 		metrics.GPeerRH.Load()
 		defer metrics.GPeerRH.Store()
+	}else {
+		fmt.Println("PeerRH is disabled")
 	}
 	//see logs
 	if len(seelogs) > 0 {
@@ -1021,6 +1871,19 @@ func main() {
 		DownloadSerial(ctx, ipfs, cidfile, provideAfterGet, rmNeighbourPath, concurrentGet, stallafterdownload)
 		return
 	}
+	if cmd == "findproviderqps" {
+		ctx, ipfs, cancel := Ini()
+		defer cancel()
+		FindProviderQPS(qps, ctx, ipfs, cidfile, serach_provider_number)
+		return 
+	}
+
+	if cmd == "uploadqps"{
+		ctx, ipfs, cancel := Ini()
+		defer cancel()
+		UploadQPS(qps, filesize, filenumber, ctx, ipfs, cidfile, redun_rate, chunker, ReGenerateFile)
+		return
+	}
 	if cmd == "daemon" {
 		cmd := exec.Command(ipfsPath, "daemon")
 		stdout, err := cmd.StdoutPipe()
@@ -1064,6 +1927,20 @@ func main() {
 		ctx, ipfs, cancel := Ini()
 		defer cancel()
 		ipfs_backend(ctx, ipfs)
+		return
+	}
+	if cmd=="fullnode"{
+		fmt.Println("fullnode")
+		ctx, ipfs, cancel := Ini()
+		defer cancel()
+		FullNodeMain(ipfs, ctx, bitcoin_config_path)
+		return
+	}
+	if cmd=="lightnode"{
+		fmt.Println("lightnode")
+		ctx, ipfs, cancel := Ini()
+		defer cancel()
+		LightNodeMain(ipfs, ctx, bitcoin_config_path)
 		return
 	}
 	_, _, cancel := Ini()

@@ -8,7 +8,7 @@ CGO_ENABLED=0 make build
 build benchmark node
 ````
 cd local-node
-CGO_ENABLED=0 go build -o localIPFSNode
+CGO_ENABLED=0 go build -o xipfs
 ````
 
 Initialize IPFS repo
@@ -17,64 +17,93 @@ Initialize IPFS repo
 ````
 
 
+# xipfs Usage Guide
 
-usage:
-````
-localIPFSNode runs on a default path of ipfs (~/.ipfs), assuming that a repo exists there already. And if necessary, periodly clean the path during benchmarking.
+## Overview
 
+xipfs uses various flags to control the execution of different IPFS-related operations, such as uploading and downloading files, running the IPFS daemon, and more. Below is a breakdown of the supported operations and options.
 
-Usage of ./localIPFSNode:
-  -c string
-    	operation type
-    	upload: upload files to ipfs, with -s for file size, -n for file number, -p for concurrent upload threads, -cid for specified uploaded file cid stored
-    	downloads: download file following specified cid file with single thread, -pag provide file after get, -np path to the file of neighbours which will be disconnected after each get
-    	daemon: run ipfs daemon
-    	traceUpload: upload generated trace files, return ItemID-Cid mapping
-    	traceDownload: download according to workload trace file and ItemID-CID mapping
-    	
-  -cg int
-    	concurrent get number (default 1)
-  -chunker string
-    	customized chunker (default "size-262144")
-  -cid string
-    	name of cid file for uploading (default "cid")
-  -closebackprovide
-    	wether to close background provider
-  -closedhtrefresh
-    	whether to close dht refresh
-  -closelan
-    	whether to close lan dht
-  -enablemetrics
-    	whether to enable metrics (default true)
-  -f string
-    	file indicates the path of doc file of generated trace
-  -fastsync
-    	Speed up IPFS by skip some overcautious synchronization: 1. skip flat-fs synchronizing files, 2. skip leveldb synchronizing files
-  -i int
-    	given each server has a part of entire workload, index indicates current server own the i-th part of data. Index starts from 0.
-  -ipfs string
-    	where go-ipfs exec exists (default "./go-ipfs/cmd/ipfs/ipfs")
-  -n int
-    	file number (default 1)
-  -np string
-    	the path of file that records neighbours id, neighbours will be removed after geting file (default "neighbours")
-  -p int
-    	concurrent operation number (default 1)
-  -pag
-    	whether to provide file after get it
-  -providefirst
-    	manually provide file after upload
-  -randomRequest
-    	random request means that current client will randomly reorder requests from generated workload
-  -redun int
-    	The redundancy of the file when Benchmarking upload, 100 indicates that there is exactly the same file in the node, 0 means there is no existence of same file.(default 0)
-  -s string
-    	file size, for example: 256k, 64m, 1024 (default "262144")
-  -seelogs string
-    	configure the specified log level to 'debug', logs connect with'-', such as 'dht-bitswap-blockservice'
-  -servers int
-    	servers indicates the total number of servers (default 1)
-  -stallafterupload
-    	stall after upload
+## Basic Commands
 
-````
+The `-c` flag specifies the command or operation type. Available options are:
+
+1. **upload**: Upload files to IPFS with options for file size (`-s`), number of files (`-n`), concurrent upload threads (`-p`), and the CID file for storing uploaded file CIDs (`-cid`).
+   - Example:
+     ```bash
+     ./xipfs -c upload -s 256k -n 10 -p 5
+     ```
+
+2. **downloads**: Download files using a specified CID file. You can provide files after downloading using `-pag` and optionally disconnect neighbors specified in a file using `-rmn`.
+   - Example:
+     ```bash
+     ./xipfs -c downloads -cid cidfile -pag
+     ```
+
+3. **daemon**: Run the IPFS daemon.
+   - Example:
+     ```bash
+     ./xipfs -c daemon
+     ```
+
+4. **traceUpload**: Upload trace files and return an ItemID-CID mapping.
+   - Example:
+     ```bash
+     ./xipfs -c traceUpload -f tracefile
+     ```
+
+5. **traceDownload**: Download files based on a workload trace file and ItemID-CID mapping.
+   - Example:
+     ```bash
+     ./xipfs -c traceDownload -f tracefile
+     ```
+
+6. **fullnode**: Run the full node with a specified bitcoin configuration file.
+   - Example:
+     ```bash
+     ./xipfs -c fullnode -bc bitcoin_config
+     ```
+
+7. **lightnode**: Run the light node with a specified bitcoin configuration file.
+   - Example:
+     ```bash
+     ./xipfs -c lightnode -bc bitcoin_config
+     ```
+
+## Common Command-Line Options
+
+### General Flags
+- `-s`: File size (e.g., `256k`, `64m`), default is `262144` (256k).
+- `-n`: Number of files, default is `1`.
+- `-p`: Number of concurrent operations, default is `1`.
+- `-cid`: Name of the CID file for uploading, default is `cid`.
+- `-qps`: Queries per second, default is `1`.
+
+### IPFS Configuration
+- `-ipfs`: Path to the IPFS executable, default is `./go-ipfs/cmd/ipfs/ipfs`.
+- `-redun`: Redundancy level during upload. `100` means the file already exists, `0` means no redundancy. Default is `0`.
+
+### Download/Upload Specific Options
+- `-pag`: Whether to provide files after downloading (boolean).
+- `-rmn`: Path to a file listing neighbor nodes to disconnect after getting the file.
+- `-cg`: Number of concurrent file retrieval threads, default is `1`.
+- `-chunker`: Customized chunker option, default is `size-262144`.
+
+### Trace Testing Options
+- `-f`: Path to the trace file.
+- `-i`: Index indicating the part of the workload handled by the current server, default is `0`.
+- `-servers`: Total number of servers, default is `1`.
+- `-randomRequest`: Randomize requests in the workload (boolean).
+
+### Performance Optimization Flags
+- `-pw`: Number of provider workers to speed up IPFS, default is `8`.
+- `-fastsync`: Speed up IPFS by skipping some synchronization (boolean).
+- `-earlyabort`: Enable early abort during `findCloserPeers` (boolean).
+
+### Advanced Options
+- `-blocksizelimit`: Set the block size limit, default is `1024*1024` (1MB).
+- `-enablepbitswap`: Enable `pbitswap` (boolean).
+- `-spn`: Search provider number, default is `1`.
+
+### Logging and Debugging
+- `-seelogs`: Configure logs for debugging. Use `-` to separate multiple log components, e.g., `dht-bitswap-blockservice`.
+

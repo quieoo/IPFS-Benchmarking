@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"time"
 
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
@@ -12,6 +13,7 @@ import (
 	format "github.com/ipfs/go-ipld-format"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/syndtr/goleveldb/leveldb/testutil"
+	"sync/atomic"
 )
 
 type peerToDispatch struct {
@@ -311,11 +313,16 @@ func (p *peerToDispatch) run() {
 	p.working = true
 	p.workinglock.Unlock()
 
+	// 使用 context.WithCancel 来支持取消操作
+	ctx, cancel := context.WithCancel(p.ctx)
+	defer cancel()
+
 	// 建立连接
 	p.getter.(format.PeerGetter).PeerConnect(p.id)
 
 	defer func() {
-		logger.Debugf("Worker %s has done, effectivness: %d", p.id, p.effective)
+		logger.Debugf("Worker %s has done, effectivness: %d. rundant blocks: %d", p.id, p.effective, p.received_blks-p.desired_blks)
+		// fmt.Printf("Worker %s has done, effectivness: %d. rundant blocks: %d", p.id, p.effective, p.received_blks-p.desired_blks)
 		p.workinglock.Lock()
 		p.working = false
 		p.workinglock.Unlock()
@@ -329,6 +336,9 @@ func (p *peerToDispatch) run() {
 	var closeOnceDone sync.Once           // 用于确保通道只关闭一次
 	var wg sync.WaitGroup
 
+	ticker := time.NewTicker(300 * time.Millisecond) // 每 30 秒触发一次
+	defer ticker.Stop()
+
 	// 启动第一个批次块的获取
 	toRequest := p.dispatcher.squeeze(*p)
 	if len(toRequest) == 0 {
@@ -339,7 +349,7 @@ func (p *peerToDispatch) run() {
 	p.dispatcher.blkPending(toRequest)
 
 	wg.Add(1)
-	go p.getBlocksFrom(toRequest, blockCh, thresholdCh, doneCh, &wg)
+	go p.getBlocksFrom(ctx, toRequest, blockCh, thresholdCh, doneCh, &wg)
 
 	// 主 routine 开始监听 block 接收和阈值触发信号
 	for {
@@ -380,23 +390,33 @@ func (p *peerToDispatch) run() {
 				p.request_blks += len(toRequest)
 				p.dispatcher.blkPending(toRequest)
 				wg.Add(1)
-				go p.getBlocksFrom(toRequest, blockCh, thresholdCh, doneCh, &wg)
+				go p.getBlocksFrom(ctx, toRequest, blockCh, thresholdCh, doneCh, &wg)
+			}
+		case <-ticker.C:
+			// 定时器触发，发起新的块请求
+			// logger.Debugf("Worker %s ticker triggered, sending new block request", p.id)
+			toRequest = p.dispatcher.squeeze(*p)
+			if len(toRequest) > 0 {
+				p.request_blks += len(toRequest)
+				p.dispatcher.blkPending(toRequest)
+				wg.Add(1)
+				go p.getBlocksFrom(ctx, toRequest, blockCh, thresholdCh, doneCh, &wg)
 			}
 		case <-doneCh:
 			// 完成所有块请求
 			logger.Debugf("Worker %s finished all block requests", p.id)
-			close(blockCh) // 关闭 block 通道
 			wg.Wait()      // 等待所有 goroutine 完成
+			close(blockCh) // 关闭 block 通道
 			return
 		}
 	}
 }
 
 // 额外的 goroutine 调用 GetBlocksFrom，并在接收到 60% 的块时通知主 routine
-func (p *peerToDispatch) getBlocksFrom(toRequest []cid.Cid, blockCh chan<- blocks.Block, thresholdCh chan<- struct{}, doneCh <-chan struct{}, wg *sync.WaitGroup) {
+func (p *peerToDispatch) getBlocksFrom(ctx context.Context, toRequest []cid.Cid, blockCh chan<- blocks.Block, thresholdCh chan<- struct{}, doneCh <-chan struct{}, wg *sync.WaitGroup) {
 	logger.Debugf("Worker %s start new routine to send %d block requests to peers: %v", p.id, len(toRequest), toRequest)
 	defer wg.Done()
-	blocks := p.getter.(format.PeerGetter).GetBlocksFrom(p.ctx, toRequest, p.id)
+	blocks := p.getter.(format.PeerGetter).GetBlocksFrom(ctx, toRequest, p.id)
 	receivedCount := 0
 	totalCount := len(toRequest)
 	preloaded := 0
@@ -405,6 +425,8 @@ func (p *peerToDispatch) getBlocksFrom(toRequest []cid.Cid, blockCh chan<- block
 	}
 	for {
 		select {
+		case <-ctx.Done(): // 如果 context 被取消，退出
+			return
 		case blk, ok := <-blocks:
 			if !ok {
 				// 通道关闭，退出
@@ -428,11 +450,10 @@ func (p *peerToDispatch) getBlocksFrom(toRequest []cid.Cid, blockCh chan<- block
 				}
 				preloaded = 1
 			}
-
-		case <-p.ctx.Done():
-			return
 		case <-doneCh:
 			// 如果 doneCh 关闭，退出
+			return
+		case <-p.ctx.Done():
 			return
 		}
 	}
@@ -441,32 +462,46 @@ func (p *peerToDispatch) getBlocksFrom(toRequest []cid.Cid, blockCh chan<- block
 // 处理每一个接收到的 block
 // 状态：0-成功，1-冗余，2-失败
 func (p *peerToDispatch) processBlock(blk blocks.Block) int {
-	// 当前节点是否需要这个块
-	state, ok := p.dispatcher.blkQuery(blk.Cid())
-	if ok && state != Filled {
-		// 更新块的状态
-		p.dispatcher.blkFill(blk.Cid())
-		nd, err := format.Decode(blk)
-		if err != nil {
-			fmt.Println(err.Error())
-			return 2
-		}
-
-		navigableNode := format.NewNavigableIPLDNode(nd, p.getter)
-		p.effective++
-
-		// 处理块的子节点
-		childs := navigableNode.GetChilds()
-		if len(childs) > 0 {
-			p.dispatcher.blkFind(childs)
-		}
-		return 0
+	
+	state, exists:= p.dispatcher.blkQuery(blk.Cid())
+	if !exists {
+		return 2
 	} else if state == Filled {
 		p.dispatcher.monitor.updateRedundant()
 		return 1
-	} else {
+	}
+	p.dispatcher.queryStateLock.Lock()
+
+	nd, err := format.Decode(blk)
+	if err != nil {
+		fmt.Println(err.Error())
+		p.dispatcher.queryStateLock.Unlock()
 		return 2
 	}
+
+	navigableNode := format.NewNavigableIPLDNode(nd, p.getter)
+	p.effective++
+
+	p.dispatcher.writeNodeLock.Lock()
+	err = p.visit(navigableNode) //visit block
+	p.dispatcher.writeNodeLock.Unlock()
+	if err != nil {
+		// fmt.Println(err.Error())
+		p.dispatcher.queryStateLock.Unlock()
+		return 2
+	}
+	p.dispatcher.queryState[blk.Cid()] = Filled
+	atomic.AddInt32(&p.dispatcher.left, -1)
+	p.dispatcher.queryStateLock.Unlock()
+
+	// 处理块的子节点
+	childs := navigableNode.GetChilds()
+	if len(childs) > 0 {
+		p.dispatcher.blkFind(childs)
+	}
+
+	return 0
+
 }
 
 func (p *peerToDispatch) Stop() {

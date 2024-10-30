@@ -7,14 +7,19 @@ import (
 	"sync"
 	"time"
 
+	"metrics"
+
 	"github.com/ipfs/go-cid"
 	format "github.com/ipfs/go-ipld-format"
 	logging "github.com/ipfs/go-log"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/routing"
+	"sync/atomic"
 )
 
 var logger = logging.Logger("pbitswap")
+var closeOnce sync.Once // 确保通道只关闭一次
+
 
 type Dispatcher struct {
 	path           []format.NavigableNode
@@ -22,7 +27,7 @@ type Dispatcher struct {
 	queryState     map[cid.Cid]int
 	queryStateLock sync.RWMutex
 	cids           []cid.Cid
-	left           int
+	left           int32
 	wantBlocksEach int
 
 	currentNodeData *bytes.Reader
@@ -64,106 +69,63 @@ const (
 	Filled  = 3
 )
 
-var closeOnce sync.Once // 确保通道只关闭一次
 
-// blkFind updates the dispatcher with new CIDs and informs workers
+// 修改 blkFind 函数
 func (d *Dispatcher) blkFind(cids []cid.Cid) {
-	d.queryStateLock.Lock() // 写锁
-	add := 0
-	for _, c := range cids {
-		_, has := d.queryState[c]
-		if has {
-			continue // Skip if another worker has already stored this CID
-		}
-		add++
-		d.queryState[c] = Empty
-		d.cids = append(d.cids, c)
-	}
-	d.left += add
-	d.queryStateLock.Unlock() // 释放写锁
+    add := int32(0)
+    for _, c := range cids {
+        d.queryStateLock.Lock()  // 写操作加锁
+        _, has := d.queryState[c]
+        if !has {
+            d.queryState[c] = Empty
+            d.cids = append(d.cids, c)
+            add++
+        }
+        d.queryStateLock.Unlock()
+    }
+    
+    atomic.AddInt32(&d.left, add)
 
-	// Parallelize block dispatching using goroutines
-	d.worker.Range(func(key, value interface{}) bool {
-		go value.(*peerToDispatch).absorb2(cids, d.selfID)
-		return true
-	})
+    // 并行调度块
+    d.worker.Range(func(key, value interface{}) bool {
+        go value.(*peerToDispatch).absorb2(cids, d.selfID)
+        return true
+    })
 }
 
-// blkFill marks a CID as filled and decrements remaining blocks
+// 修改 blkFill 函数
 func (d *Dispatcher) blkFill(c cid.Cid) {
-	d.queryStateLock.Lock() // 写锁
-	d.queryState[c] = Filled
-	d.left--
-	d.queryStateLock.Unlock() // 释放写锁
+    d.queryStateLock.Lock()  // 写操作加锁
+    defer d.queryStateLock.Unlock()
+
+    d.queryState[c] = Filled
+    atomic.AddInt32(&d.left, -1)
 }
 
-// // blkRequest generates a list of CIDs to request from a peer
-// func (d *Dispatcher) blkRequest(peer *peerToDispatch) []cid.Cid {
-// 	var result []cid.Cid
-// 	fetched := 0
-
-// 	d.queryStateLock.RLock() // 读锁
-// 	for _, cid := range peer.sequence {
-// 		v, ok := d.queryState[cid]
-// 		if !ok {
-// 			fmt.Println("peerToDispatch requested non-existent CID")
-// 			d.queryStateLock.RUnlock()
-// 			return nil
-// 		}
-// 		if v == Empty {
-// 			result = append(result, cid)
-// 			fetched++
-// 			if fetched >= d.wantBlocksEach {
-// 				break
-// 			}
-// 		}
-// 	}
-// 	// If more blocks are needed, check for pending blocks
-// 	if fetched < d.wantBlocksEach {
-// 		for _, cid := range peer.sequence {
-// 			v, ok := d.queryState[cid]
-// 			if !ok {
-// 				fmt.Println("peerToDispatch requested non-existent CID")
-// 				d.queryStateLock.RUnlock()
-// 				return nil
-// 			}
-// 			if v == Pending {
-// 				result = append(result, cid)
-// 				fetched++
-// 				if fetched >= d.wantBlocksEach {
-// 					break
-// 				}
-// 			}
-// 		}
-// 	}
-// 	d.queryStateLock.RUnlock() // 释放读锁
-
-// 	return result
-// }
 
 // blkPending marks a list of CIDs as pending
 func (d *Dispatcher) blkPending(cids []cid.Cid) {
-	d.queryStateLock.Lock() // 写锁
+	d.queryStateLock.Lock()
+	defer d.queryStateLock.Unlock()
 	for _, c := range cids {
 		d.queryState[c] = Pending
 	}
-	d.queryStateLock.Unlock() // 释放写锁
 }
 
-// ExistsInQueryState checks if a specific CID exists in queryState
+// 修改 blkQuery 函数
 func (d *Dispatcher) blkQuery(c cid.Cid) (int, bool) {
-	d.queryStateLock.RLock()          // 使用读锁来并发读取
-	status, exists := d.queryState[c] // 检查 map 中是否有该 cid
-	d.queryStateLock.RUnlock()        // 解锁
-	return int(status), exists
+    d.queryStateLock.RLock()  // 读操作加锁
+    defer d.queryStateLock.RUnlock()
+
+    status, exists := d.queryState[c]
+    return int(status), exists
 }
+
+
 
 // AllFilledInQueryState checks if all CIDs in queryState have been marked as Filled
 func (d *Dispatcher) blkAllFilled() bool {
-	d.queryStateLock.RLock()         // 使用读锁来遍历 queryState
-	defer d.queryStateLock.RUnlock() // 确保方法结束时解锁
-
-	return d.left == 0
+	return atomic.LoadInt32(&d.left) == 0
 }
 
 type ProviderRole int32
@@ -199,7 +161,9 @@ func (d *Dispatcher) Dispatch3(visit format.Visitor) error {
 	finish := make(chan peer.ID)
 
 	go d.findProviders(rootNode, providers)
-	go d.findCoWorkers(providers)
+	if !metrics.CMD_DisCoWorer {
+		go d.findCoWorkers(providers)
+	}
 
 	// Peer dispatch process
 	for {

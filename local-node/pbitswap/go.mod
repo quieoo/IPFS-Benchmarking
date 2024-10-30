@@ -11,6 +11,7 @@ require (
 	github.com/libp2p/go-libp2p-core v0.15.1
 	github.com/libp2p/go-libp2p-kad-dht v0.15.0 // indirect
 	github.com/syndtr/goleveldb v1.0.0
+	metrics v0.0.0-00010101000000-000000000000
 )
 
 replace (

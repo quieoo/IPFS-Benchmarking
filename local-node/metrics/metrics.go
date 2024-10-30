@@ -28,6 +28,8 @@ var CMD_EarlyAbort = false
 var EarlyAbortCheck = 5
 var CMD_PeerRH = false
 var CMD_NoneNeighbourAsking = false
+var CMD_DisCoWorer = false
+var CMD_PBitswap_Ticker = false
 
 // var CMD_LoadSaveCache = false
 var EnablePbitswap = false
@@ -59,10 +61,11 @@ var FlatfsPutDura time.Duration
 var SyncTime metrics.Timer
 
 /*
-	two parts of it:
-		keytransform.(*Datastore).Has in go-ipfs-blockstore.(*blockstore).Put
-		keytransform.(*Datastore).Has in go-ipfs-blockstore.(*blockstore).PutMany
-		go-ipfs-blockstore.(*idstore).Has
+two parts of it:
+
+	keytransform.(*Datastore).Has in go-ipfs-blockstore.(*blockstore).Put
+	keytransform.(*Datastore).Has in go-ipfs-blockstore.(*blockstore).PutMany
+	go-ipfs-blockstore.(*idstore).Has
 */
 var DeduplicateOverhead metrics.Timer
 
@@ -89,7 +92,7 @@ var WriteTo metrics.Timer
 var BlocksRedundant metrics.Histogram
 var RequestsRedundant metrics.Histogram
 
-//findProvider metrics
+// findProvider metrics
 var FPMonitor *FindProviderMonitor
 var ChoosePeer metrics.Timer
 var DailPeer metrics.Timer
