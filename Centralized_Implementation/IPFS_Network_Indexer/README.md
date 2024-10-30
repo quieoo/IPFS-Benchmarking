@@ -14,12 +14,14 @@ export PATH=$(go env GOPATH)/bin:$PATH
 run `source /etc/profile`
 
 ### Install & Run
-```
-go install github.com/ipni/index-provider/cmd/provider@v0.15.5
-```
-Initialize
-```
-provider init
+```bash
+## build index-provider from source
+git clone https://github.com/quieoo/index-provider.git
+cd index-provider
+go build
+
+## initialize the index-provider
+./provider init
 ```
 
 The configuration file can be found at `~/.index-provider/config`.
@@ -41,7 +43,7 @@ Edit the Delegated Routing which allows IPFS nodes to advertise their contents t
 
 Run the index-provider
 ```
-provider daemon
+./provider daemon
 ```
 
 ## Provider
